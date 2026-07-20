@@ -84,22 +84,22 @@ Keep the README and any notes concise — no unrequested caveats, comparisons, o
 ### Development Server
 | Task | Command |
 |------|---------|
-| Start server | `poetry run uvicorn app.main:app --reload` |
+| Start server | `uv run uvicorn app.main:app --reload` |
 
 ### Testing
 | Task | Command |
 |------|---------|
-| Run all tests | `poetry run pytest` |
-| Run specific test | `poetry run pytest tests/path/to/test_file.py` |
+| Run all tests | `uv run pytest` |
+| Run specific test | `uv run pytest tests/path/to/test_file.py` |
 
 ### Database
 | Task | Command |
 |------|---------|
-| Run migrations | `poetry run alembic upgrade head` |
-| Create a migration | `poetry run alembic revision --autogenerate -m "description"` |
+| Run migrations | `uv run alembic upgrade head` |
+| Create a migration | `uv run alembic revision --autogenerate -m "description"` |
 
 ### Code Quality
 | Task | Command |
 |------|---------|
-| Lint | `poetry run ruff check .` |
-| Lint (auto-fix) | `poetry run ruff check --fix .` |
+| Lint | `uv run ruff check .` |
+| Lint (auto-fix) | `uv run ruff check --fix .` |

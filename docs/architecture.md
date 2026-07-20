@@ -49,8 +49,9 @@ Known-unresolved as of this writing. Don't assume an answer when implementing �
 
 ## Tech stack decisions
 
-- **Python, FastAPI, asyncio, Poetry.** FastAPI's async request handling and Pydantic models are the core of every service. Poetry manages dependencies per-repo.
-- **Postgres, one database per service.** Each service (game-engine, later market) owns its own Postgres database — no cross-service joins, no shared schema. At this project's scale, that's one Cloud SQL instance with a separate database and credentials per service, not a separate instance per service (a full separate instance per service is the more realistic production pattern, but billed continuously regardless of load — not worth it yet at two players).
+- **Python, FastAPI, asyncio, uv.** FastAPI's async request handling and Pydantic models are the core of every service. uv manages dependencies and the Python interpreter itself, per repo.
+- **Postgres, not SQLite.** SQLite serializes every write across the whole database file — with multiple concurrent games all writing moves at once, this leads to "database is locked" errors under real load. Postgres handles concurrent writes properly.
+- **One database per service.** Each service (game-engine, later market) owns its own Postgres database — no cross-service joins, no shared schema. At this project's scale, that's one Cloud SQL instance with a separate database and credentials per service, not a separate instance per service (a full separate instance per service is the more realistic production pattern, but billed continuously regardless of load — not worth it yet at two players).
 - **REST for actions, WebSocket + Pub/Sub for push — through the BFF, not directly to game-engine.** A move is naturally "create a move resource" — the client `POST`s it to the BFF, which forwards it to game-engine for validation and persistence. The BFF terminates the player's WebSocket connection and subscribes to Pub/Sub events published by game-engine (e.g. "round resolved"), then pushes a per-player-filtered update down that player's socket. This is the same request/action-vs-push split the original Rails design used (there, ActionCable played the push role); the BFF is now where that push logic lives, since it's the service the frontend actually talks to.
 - **Redis for ephemeral state, Pub/Sub for durable events — different jobs, not interchangeable.** Redis holds fast, disposable state: which players are currently connected, WebSocket presence, matchmaking queue. GCP Pub/Sub carries events that must not be silently dropped if a consumer was briefly offline (e.g. a market trade completing while a player was disconnected). Reconnecting into a live game doesn't need event replay — the client re-fetches current authoritative state from game-engine (via the BFF) and resubscribes for future deltas; durability matters for cross-service notifications, not for the live board itself.
 - **Kubernetes (GKE) + ArgoCD (GitOps).** Each service is deployed independently; the `platform` repo holds the manifests ArgoCD syncs into the cluster. Local dev uses docker-compose (or Tilt/Skaffold) against locally built images, not a live cluster, so the day-to-day inner loop doesn't require Kubernetes at all.
@@ -60,7 +61,7 @@ Known-unresolved as of this writing. Don't assume an answer when implementing �
 
 Owned entirely by game-engine's own Postgres database — no other service reads or writes these tables directly.
 
-- `Game` — the match: board dimensions, current turn, status (setup / in_progress / finished), winner.
+- `Game` — the match: board dimensions, current turn, status (setup / in_progress / finished), winner. MVP skips `setup` entirely — games start directly `in_progress` with a fixed army (see `TASKS.md` Phase 1); `setup` comes back once player-driven placement lands (Phase 4).
 - `Player` — one of the two participants in a `Game`.
 - `Piece` — belongs to a `Player` and a `Game`; has a rank, a position, and a `revealed` flag.
 
