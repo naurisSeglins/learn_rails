@@ -17,6 +17,7 @@ Core technical challenge: hidden information. Each player must only ever receive
 | `docs/architecture.md` | What this project is, system architecture (multi-repo split), data model, transport design, hidden-information handling, key design decisions |
 | `TASKS.md` | MVP scope, phased roadmap, current status, task backlog — scoped to this repo, notes cross-repo dependencies |
 | `books.md` | Technical reading list, ordered by project phase |
+| `exercises.md` | Deliberate-practice log — assigned exercises, conventions, status. Separate from `TASKS.md`'s real project work; see `exercises/` for the actual exercise code |
 | `LICENSE` | All Rights Reserved — public repo, no reuse rights granted |
 
 **`TASKS.md` is the single source of truth for status and what to work on next.** When work is completed, started, or rescoped, update `TASKS.md` in the same session — don't leave it stale, and don't duplicate status information back into this file.
@@ -84,22 +85,22 @@ Keep the README and any notes concise — no unrequested caveats, comparisons, o
 ### Development Server
 | Task | Command |
 |------|---------|
-| Start server | `poetry run uvicorn app.main:app --reload` |
+| Start server | `uv run uvicorn app.main:app --reload` |
 
 ### Testing
 | Task | Command |
 |------|---------|
-| Run all tests | `poetry run pytest` |
-| Run specific test | `poetry run pytest tests/path/to/test_file.py` |
+| Run all tests | `uv run pytest` |
+| Run specific test | `uv run pytest tests/path/to/test_file.py` |
 
 ### Database
 | Task | Command |
 |------|---------|
-| Run migrations | `poetry run alembic upgrade head` |
-| Create a migration | `poetry run alembic revision --autogenerate -m "description"` |
+| Run migrations | `uv run alembic upgrade head` |
+| Create a migration | `uv run alembic revision --autogenerate -m "description"` |
 
 ### Code Quality
 | Task | Command |
 |------|---------|
-| Lint | `poetry run ruff check .` |
-| Lint (auto-fix) | `poetry run ruff check --fix .` |
+| Lint | `uv run ruff check .` |
+| Lint (auto-fix) | `uv run ruff check --fix .` |

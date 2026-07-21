@@ -6,7 +6,7 @@ Built as a learning project for a Python/FastAPI, cloud-native microservices sta
 
 ## Stack
 
-Python, FastAPI, asyncio, Poetry, Postgres (via SQLAlchemy async + Alembic), pytest.
+Python, FastAPI, asyncio, uv, Postgres (via SQLAlchemy async + Alembic), pytest.
 
 ## Setup
 
