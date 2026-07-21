@@ -11,8 +11,21 @@ Each task below has:
 - an ***Industry context:*** line, where a named technology or practice is central to the ticket — not why *this project* uses it, but what's generally worth knowing about it in the industry: where it
   came from, what problem it was actually built to solve, common alternatives, and real tradeoffs. The goal of these tickets isn't checking a box — it's being able to explain and argue the choice
   afterward, not just recite that it worked here.
-- a **Read first** line pointing at the book(s) in `books.md` most relevant to that task's context — not the whole book, just go in with that lens. Some tasks are pure setup/administration with no
-  useful reading; those say so rather than forcing a fit.
+- a ***How it works:*** line — the practical mechanics: how the pieces actually connect and behave at runtime (what talks to what, what's created once vs. per-request, where config values live and
+  why). This is different from *What it is* (a definition) or *Why we use it* (the rationale) — it's the wiring diagram, concrete enough to answer "so what do I actually build, and why does it look
+  like that."
+- a **Read first** line pointing at whatever explains the concept best — a book (added to `books.md` if it's not there yet), official documentation, or a well-regarded write-up (a respected
+  engineering blog, Medium, dev.to). No format is preferred over another; the bar is "does this actually explain it well," not "is it a book." Some tasks are pure setup/administration with no useful
+  reading at all; those say so rather than forcing a fit.
+- a ***Common pitfalls:*** line, only where a real, already-hit gotcha exists for that specific ticket — not filled in artificially where nothing's actually gone wrong. Capturing a mistake once we've
+  actually made it (a scoping error, a stale-environment surprise, a config landing somewhere it shouldn't) means future-you doesn't rediscover it the hard way a second time.
+
+**When a ticket repeats an already-covered concept** (a second REST endpoint, a second State-pattern ticket), keep the same five-part structure — every ticket still gets a *What it is*/*Why we use
+it*/*How it works*/*What breaks without it*/*Industry context* — but the content can be a brief pointer back to the ticket that already covered it ("same pattern as X's Industry context"), rather than
+a full fresh explanation. The structure stays consistent; the depth doesn't need to.
+
+**Retrieval checkpoint:** before checking a ticket's box, explain its *How it works* flow back in your own words (out loud, in writing, or to me) — not just "it works," but the actual mechanism.
+Being asked to retrieve something is a stronger test than having just read it, and it's the cheapest point to catch a gap, before it's buried under the next ticket.
 
 **Practical Object-Oriented Design in Ruby (POODR)** isn't tied to one ticket — read it before starting Phase 1. CLAUDE.md's "Minimal & Readable Code (Sandi Metz Philosophy)" rule comes straight from
 this book and governs every class written from the first model onward, not just the service-object extraction in "Resolve combat" below.
@@ -53,6 +66,10 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
         request into a call to your function and your function's return value into an HTTP response. This is the same job Rails' `routes.rb` + controllers did together, just one library instead of
         two.
       - *Why we use it:* it's the framework every endpoint in this service is built on.
+      - *How it works:*
+        - The flow: request arrives → route matching (path + method) → path/query param + body validation → your function runs → return value serialized (through a response model, if declared).
+        - **Route matching** — `@app.get("/games/{id}")` registers your function against that path/method; the `app` object is really just this registry, nothing more.
+        - **Validation happens before your function runs** — params and body are checked against their declared types first, so your function only ever sees already-valid data.
       - *What breaks without it:* you'd be hand-writing HTTP parsing, routing, and response formatting from scratch — solved problems FastAPI gives you for free.
       - *Industry context:*
         - *Origin:* created 2018 by Sebastián Ramírez, built *on top of* two existing libraries (Starlette for the async web layer, Pydantic for validation) rather than reinventing them. Its breakout
@@ -71,6 +88,10 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
         networking work, and for every request it receives, calls into your FastAPI app to ask "what's the response?" This is Python's equivalent of Puma in Rails: Rails defines your app, Puma is
         what's actually bound to a port listening for connections.
       - *Why we use it:* FastAPI needs an actual running process serving it — `app = FastAPI()` alone doesn't listen for anything.
+      - *How it works:*
+        - The flow: TCP connection arrives → uvicorn parses the raw HTTP bytes → translated into the ASGI calling convention → your FastAPI `app` is invoked with that.
+        - **Your FastAPI code never touches a socket** — uvicorn is the only thing that speaks raw HTTP; your routes just get called with already-parsed request data.
+        - **`--reload`** separately watches your source files and restarts this whole process on a change — "the dev server picked up my edit" is literally uvicorn killing and respawning itself.
       - *What breaks without it:* nothing is listening on any port, so no request can ever reach your app, no matter how correct the code is.
       - *Industry context:*
         - *Origin:* uvicorn is an **ASGI** server — ASGI (Asynchronous Server Gateway Interface) is the async-capable successor to **WSGI**, the older standard that's powered Flask and Django for two
@@ -82,6 +103,10 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
       - *What it is:* a library that lets you describe database tables as Python classes (a `Game` class instead of a `games` SQL table) and query/save data with Python instead of writing SQL by hand
         — SQLAlchemy translates your Python into SQL behind the scenes. This is Python's closest equivalent to Rails' ActiveRecord, minus most of Rails' extra "magic" conventions.
       - *Why we use it:* every read/write of a `Game`/`Player`/`Piece` goes through this instead of raw SQL scattered through route handlers.
+      - *How it works:*
+        - The flow: Python class mapped to a table → build a query object (`select(Game).where(...)`) → execute via a `Session` → SQL sent to Postgres → rows returned → mapped into `Game` instances.
+        - **The mapping** (Python class ↔ table) happens once, declaratively, when you define the class — it doesn't re-run per query.
+        - **The `Session`** doesn't hold a database connection the whole time — it borrows one from the engine's pool only while actively doing work, then returns it.
       - *What breaks without it:* every database interaction becomes a hand-written SQL string, a manually-managed connection, and manual row-to-object conversion — slow to write and an easy way to
         introduce a SQL injection bug under deadline pressure.
       - *Industry context:*
@@ -95,6 +120,10 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
       - *What it is:* SQLAlchemy doesn't actually know how to speak to Postgres over the network by itself — it needs a lower-level library ("driver") that knows Postgres's specific message format and
         handles the raw bytes going back and forth. asyncpg is that driver, built specifically to work with Python's `async`/`await` instead of waiting around blocked.
       - *Why we use it:* while one request is waiting on a slow database query, an async driver lets the server go handle a *different* request in the meantime instead of sitting idle doing nothing.
+      - *How it works:*
+        - The flow: SQLAlchemy's async engine → delegates to asyncpg → asyncpg opens the socket and speaks Postgres's wire protocol → raw response parsed back into Python values → handed to
+          SQLAlchemy.
+        - **You never call asyncpg directly** — your code only ever calls SQLAlchemy's own async API (`await session.execute(...)`); asyncpg sits one layer beneath, invisible unless something breaks.
       - *What breaks without it:* using an ordinary (synchronous) driver like `psycopg2` instead would mean that while any one request waits on the database, the entire server process freezes and
         can't handle any other request at all — which defeats the reason this stack is async in the first place.
       - *Industry context:*
@@ -107,6 +136,11 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
       - *What it is:* a tool that records changes to your database's structure (adding a table, adding a column) as small, numbered script files, each one saying how to apply the change and how to
         undo it. This is the direct equivalent of Rails' `db/migrate` files and `rails db:migrate` — Alembic pairs with SQLAlchemy the way ActiveRecord migrations pair with Rails.
       - *Why we use it:* as the data model changes (a new field on `Piece`, say), you need one repeatable way to apply that change everywhere — your laptop, CI, production.
+      - *How it works:*
+        - The flow: `alembic upgrade head` → checks the `alembic_version` tracking table (Alembic creates this itself) → runs every un-applied `upgrade()` in order → updates the tracking table.
+        - **The migration chain** — each file is a small script with `upgrade()`/`downgrade()` and a reference to the previous migration's ID, so Alembic always knows the correct order to apply them
+          in.
+        - **Nothing runs twice** — the tracking table is exactly what prevents re-applying a migration that's already been run.
       - *What breaks without it:* schema changes happen by hand, aren't tracked anywhere, and can't be reliably reproduced across environments or by a second person.
       - *Industry context:*
         - *Origin:* written by Mike Bayer — the same author as SQLAlchemy — specifically to pair with it, rather than being a general-purpose migration tool bolted on afterward.
@@ -119,6 +153,11 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
         data against that shape and rejects anything that doesn't match. FastAPI uses these same classes to control exactly what fields go out in a response, too.
       - *Why we use it:* it's what makes "reject an illegal move with a generic error" and, later, "the opponent's response never contains a hidden field" actually enforced by the framework rather
         than something you have to remember to check by hand in every route.
+      - *How it works:*
+        - The incoming flow: raw JSON → passed to your `BaseModel` subclass's constructor → each field checked against its declared type → a validation error (→ HTTP 422) or a validated object
+          handed to your route.
+        - The outgoing flow: your route's return value → passed through the declared `response_model` → only its fields get serialized, even if the object you returned internally had more on it.
+        - **The outgoing flow is the actual enforcement mechanism** behind Phase 2's hidden-rank filtering later — a structural guarantee, not a convention you have to remember to follow.
       - *What breaks without it:* you'd be manually validating incoming JSON and manually building outgoing JSON everywhere — and a forgotten manual check is exactly how a hidden rank would
         accidentally leak later (see Phase 2).
       - *Industry context:*
@@ -128,6 +167,13 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
           approach).
         - *Tradeoffs:* Pydantic is used widely outside FastAPI too — a general data-validation library, not FastAPI-specific. The Rust rewrite is itself a recognizable pattern: a Python library
           reaching for a compiled language once pure-Python performance becomes the bottleneck, the same story behind pandas' C internals or Ruff being written in Rust.
+  - *Common pitfalls:*
+    - **`uv add --dev` doesn't cover runtime dependencies.** Running only the `--dev` command (for pytest/ruff/etc.) leaves `dependencies` empty in `pyproject.toml` — `uv run uvicorn ...` then fails
+      with "Failed to spawn: uvicorn" because it was never actually installed. Both commands are needed, separately.
+    - **`app = FastAPI()` has to be module-level, not inside a function.** uvicorn imports your module and looks for `app` as a top-level attribute — a variable created inside `def main():` doesn't
+      exist until that function is called, and uvicorn never calls it. This is a module-scope-vs-function-scope issue, not an uvicorn-specific one.
+    - **A freshly-installed CLI tool not being found right after install.** If `uv` (or anything else) was installed in an already-open terminal session, that session's `PATH` was captured before the
+      install happened — a new terminal tab, or `source ~/.zshrc`, picks up the change; the existing one won't until then.
   - *Read first:* **Python Concurrency with asyncio** — enough to understand why the app and its dependencies are async-first, before writing the first route.
 
 - [ ] **Set up Postgres via SQLAlchemy (async) + Alembic.** Configure an async database connection and confirm a first (empty) Alembic migration runs against a local Postgres instance. This service
@@ -140,6 +186,18 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
       bullet for the full rationale).
     - **This service owning its own database** — rather than sharing one with a future `market` service, is what makes the multi-repo split actually mean something instead of being a monolith with
       extra network hops (see `docs/architecture.md`'s "One database per service" bullet).
+  - *How it works:*
+    - The flow, startup to per-request: `.env` (`DATABASE_URL`) → `Settings` (read once, at startup) → `AsyncEngine` (created once) → `Session` (created per request) → Postgres server.
+    - **`.env`** holds one connection string, bundling driver, user, host, port, and database name (`postgresql+asyncpg://user@host:port/dbname`) — the one thing that changes per environment
+      (laptop, CI, and production all point at different servers).
+    - **`Settings`** (via `pydantic-settings`) reads that file once, when the app boots, into a typed object kept in memory for the rest of the process's life — not re-read per request.
+    - **`AsyncEngine`** is created once, from `settings.database_url`, at startup. Engines manage a connection pool and are expensive to create, cheap to reuse — there's exactly one for the app's
+      entire lifetime, never one per request.
+    - **`Session`** is created fresh for each incoming request (via a FastAPI dependency like `Depends(get_db)`), borrows a connection from the engine's pool, runs that request's queries, then
+      closes — cheap and short-lived by design, unlike the engine above it.
+    - *One constant, not five:* SQLAlchemy expects a single URL string, so `DATABASE_URL` alone is enough — splitting it into `DB_HOST`, `DB_PORT`, `DB_USER`... would just mean reassembling them
+      back into a string in code, for no benefit at this project's scale. (Some larger setups do split it — e.g. a secrets manager injecting the password separately for rotation — solving a problem
+      this project doesn't have.)
   - *What breaks without it:* without a real database, this service would need to invent its own way to persist and safely query game state under concurrent access — reinventing transactions,
     indexing, and concurrency control badly and slowly instead of using tools that have solved these problems for decades.
   - *Industry context:*
@@ -149,7 +207,15 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
       CockroachDB (Postgres-wire-compatible but built for horizontal scaling across multiple machines).
     - *Tradeoffs:* Postgres is a full client-server database requiring its own running process to manage — SQLite's biggest advantage (zero setup, just a file) is exactly what you give up by choosing
       Postgres. Worth it here because concurrent games writing moves is precisely the case SQLite handles badly (see the Why above).
-  - *Read first:* none of the current reading list covers SQLAlchemy/Alembic directly — worth a dedicated lookup rather than a full book for this one.
+  - *Common pitfalls:*
+    - **A local Postgres server's data directory ending up inside this repo.** If Postgres.app's "location" is pointed anywhere inside `learn_rails/`, the data directory is untracked and *not*
+      excluded by `.gitignore` — a careless `git add -A` would try to commit raw binary database files. Keep the data directory outside any project folder entirely.
+    - **Port 5432 already being in use.** If another local Postgres instance is already running (a different project, a background service), Postgres.app will fail to start on the default port —
+      give this project's instance its own port (e.g. `5433`) rather than fighting over 5432, and remember every client tool (`psql`, `createdb`, the app's connection URL) needs that port passed
+      explicitly, since they all assume 5432 unless told otherwise.
+  - *Read first:* **SQLAlchemy 2 In Practice** (Miguel Grinberg) — Chapter 7, "Asynchronous SQLAlchemy," covers the async engine/session setup directly. No book covers Alembic specifically, so for
+    migrations go straight to Alembic's own ["Using asyncio with Alembic"](https://alembic.sqlalchemy.org/en/latest/cookbook.html#using-asyncio-with-alembic) cookbook entry — note the `-t async`
+    flag on `alembic init`, easy to miss, which produces a different template than the default (sync) one.
 
 - [ ] **Set up pytest + httpx for request-style specs.** Add `pytest`, `pytest-asyncio`, `httpx` (for `AsyncClient` against the FastAPI app), and `factory_boy` (per CLAUDE.md's Testing Conventions).
   Confirm `pytest` runs (even with zero tests).
@@ -158,6 +224,9 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
       - *What it is:* a plugin that teaches pytest (the test runner) how to run `async def` test functions. A normal Python function runs straight through top to bottom; an `async def` function is
         written to pause and resume (e.g. while waiting on a database call), and pytest has no built-in idea how to drive that pause/resume cycle on its own — this plugin adds it.
       - *Why we use it:* your FastAPI routes are `async def` functions, so testing them properly means calling them the same way.
+      - *How it works:*
+        - The flow: `async def test_...()` → marked (`@pytest.mark.asyncio`) or auto-applied (`asyncio_mode = "auto"`) → wrapped in its own event loop → awaited to completion → pass/fail decided.
+        - **Without the plugin**, pytest treats the coroutine object itself as the test's result — the test "passes" without its body ever actually running.
       - *What breaks without it:* an `async def test_...()` either errors outright or silently doesn't run its body the way you'd expect, since plain pytest can't execute it correctly.
       - *Industry context:*
         - *Origin:* pytest itself is the dominant Python test framework, largely having replaced the stdlib `unittest` (more verbose, class-based, Java-flavored) — its plugin ecosystem, of which this
@@ -170,6 +239,9 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
         network port or starting a real server — while still exercising your app the same async way a real server would call it.
       - *Why we use it:* this is what CLAUDE.md's "Test Against the Endpoint" actually means in practice — sending a simulated request into the app and checking the real response, the same way Rails'
         request specs hit routes rather than calling model methods directly.
+      - *How it works:*
+        - The flow: `AsyncClient(app=app)` → hooks into your FastAPI app's ASGI interface directly (no real socket) → `await client.post(...)` drives a real request through your actual
+          routing/validation/response logic, in-process → a real response object comes back to assert against.
       - *What breaks without it:* you'd be left testing individual functions in isolation, which CLAUDE.md explicitly says is *not* the primary test layer here — a passing unit test doesn't prove the
         actual HTTP behavior works end to end.
       - *Industry context:*
@@ -183,6 +255,9 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
         the direct Python equivalent of Rails' FactoryBot — same idea, same lineage (factory_boy was ported from Ruby's original `factory_girl`, later renamed FactoryBot).
       - *Why we use it:* CLAUDE.md's Testing Conventions call for factories with traits for meaningful states (e.g. "a game already in progress," "a piece that's already revealed") — this is the tool
         that provides that.
+      - *How it works:*
+        - The flow: define a `Factory` subclass with default field values (`status = "in_progress"`) → call it in a test (`GameFactory()`) → a real row is built with those defaults → override just
+          what matters for that test (`GameFactory(status="finished")`).
       - *What breaks without it:* every test needing a database record hand-rolls its own setup code, which duplicates across the suite and quietly drifts out of sync as the model changes.
       - *Industry context:*
         - *Origin:* the Python port of Ruby's `factory_girl` (thoughtbot's gem, later renamed FactoryBot in 2017) — factory_boy's name is a deliberate pun on the original Ruby name, not a coincidence.
@@ -198,6 +273,11 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
   - *Why we use it:* building this now, rather than waiting for the Phase 3 deploy ticket, means every ticket from here on can be sanity-checked in the same environment that will eventually run in
     production. A container-specific bug (a missing system library, a path assumption that only holds on your laptop) is cheap to catch here and expensive to discover for the first time during an
     actual deploy.
+  - *How it works:*
+    - The flow: `Dockerfile` instructions (base image → copy dependency files → install deps → copy app code → set start command) → each becomes a cached layer → `docker build` → an image →
+      `docker run` → an isolated container.
+    - **Layer ordering matters** — installing dependencies before copying your app code means editing a line of app code doesn't invalidate the dependency-install layer's cache, keeping rebuilds fast.
+    - **A container isn't a VM** — it uses the host kernel's namespaces/cgroups to only see the filesystem/processes the image gives it, rather than running its own separate kernel.
   - *What breaks without it:* without a container image, "works on my machine" has no guarantee of meaning "works anywhere else" — a missing system library or OS-level difference can silently break
     the app somewhere it was never tested, and there's no single artifact to actually hand to Kubernetes later.
   - *Industry context:*
@@ -225,6 +305,10 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
     it, instead of each action getting its own custom-named endpoint.
   - *Why we use it:* this is the smallest slice that produces a real, shared object two players are actually attached to — every later ticket (moves, combat, win detection) needs a `Game` to operate
     on, so it has to exist first regardless of what game rules end up being decided.
+  - *How it works:*
+    - The flow: `POST /games` → parsed + validated against a "create game" schema → a new `Game` row created via SQLAlchemy → response includes its generated ID/code.
+    - **That ID is the game's whole identity from then on** — every later request (joining, submitting moves) references it in its own URL or payload; nothing else about "which game" gets passed
+      around separately.
   - *What breaks without it:* without treating "a game" as a resource with its own identity, every action needs its own bespoke endpoint and URL scheme invented from scratch, and nothing about the
     API's shape is predictable from one endpoint to the next.
   - *Industry context:*
@@ -234,7 +318,8 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
       wants back).
     - *Tradeoffs:* REST's resource-oriented style tends to age well and map cleanly onto CRUD-shaped operations like this one, but doesn't always fit an action like "submit move orders" as naturally
       as a pure RPC verb would — worth noticing that friction when it comes up rather than forcing every action into REST dogma.
-  - *Read first:* none specific — a straightforward FastAPI router + Pydantic schema exercise.
+  - *Read first:* FastAPI's own ["First Steps"](https://fastapi.tiangolo.com/tutorial/first-steps/) tutorial — covers path operations and the request/response cycle this ticket is built from
+    directly.
 
 - [ ] **Submit move orders for a round, with a round timer.** A player can queue movement orders for any subset of their own units during the round's countdown timer (each unit capped by its own
   movement allowance), then submit the batch. Acceptance: illegal orders (insufficient movement allowance remaining, moving an immobile unit) are rejected with a generic error; a submitted batch stays
@@ -243,6 +328,10 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
     be validated, stored, queued, or replayed before (or instead of) actually being applied.
   - *Why we use it:* modeling a queued move as a first-class object (rather than a bag of params) up front is what makes both this ticket's own validation and Phase 4's replay ticket tractable
     later — retrofitting that structure after moves are already scattered through ad-hoc code is much more expensive than starting with it.
+  - *How it works:*
+    - The flow: a move is submitted → validated and stored as its own object → held (not applied) until the round timer expires → every player's stored batch resolves together.
+    - **"Receive an order" and "apply an order" are two separate steps**, mediated by that stored object — exactly what makes "wait for both players" and Phase 4's replay both possible without
+      restructuring anything later.
   - *What breaks without it:* without a first-class move object, queuing multiple orders before the round resolves, validating them before applying, and replaying them later (Phase 4) all have to
     be bolted on after the fact, onto code that was never structured to support any of them.
   - *Industry context:*
@@ -261,6 +350,10 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
   - *What it is:* a service object is a plain class whose only job is one piece of business logic — here, resolving a battle — instantiated, given what it needs, and asked to do exactly that one
     thing, rather than that logic living inside a route handler or a `Game`/`Piece` model method.
   - *Why we use it:* combat is where two players' independent, simultaneous move batches actually collide — without it, "submit moves" and "declare a winner" have nothing connecting them.
+  - *How it works:*
+    - The flow: round resolution needs an outcome → instantiates something like `CombatResolver(attacker, defender)` → it applies the (eventually-decided) combat math → returns/persists the result.
+    - **It knows nothing about HTTP, FastAPI, or how it was called** — just the two pieces involved — which is what makes it directly unit-testable with plain Python objects, no request cycle
+      required.
   - *What breaks without it:* combat-resolution logic ends up scattered across route handlers and models, making it hard to test in isolation and easy to accidentally duplicate or diverge between
     the places it's needed.
   - *Industry context:*
@@ -277,6 +370,10 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
     legal, rather than inferring "is this game still playable?" from scattered conditions elsewhere.
   - *Why we use it:* without an explicit terminal state, a finished game would keep silently accepting moves — this is what turns "the game is over" into an enforced guarantee instead of something
     the UI just happens to assume.
+  - *How it works:*
+    - The flow: a round resolves → a check evaluates the (eventually-decided) win condition → if met, `Game.status` transitions to `finished`.
+    - **Every route that could accept a move checks `status` first** and rejects the request if the game's already finished — `status` is the single source of truth every other piece of code
+      defers to, not something inferred independently in multiple places.
   - *What breaks without it:* without an explicit state machine, "is the game over" ends up checked inconsistently in different places, and it's easy for a code path to accidentally accept a move
     against a game that should already be finished.
   - *Industry context:*
@@ -294,6 +391,10 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
     it — as opposed to the publisher calling every interested party directly.
   - *Why we use it:* this is the seam the future `bff` repo will consume to push live updates to a browser connection. Building the publishing mechanism now, even in its simplest unfiltered form,
     means Phase 2 only has to change *what's in* the event, not invent how events get published from scratch.
+  - *How it works:*
+    - The flow: round resolves → a message describing the outcome is constructed → published to a named topic (GCP Pub/Sub) → the call returns immediately, before anything consumes it.
+    - **This service never knows or waits for who's listening** — any future consumer (the `bff`, eventually) subscribes to that same topic independently; this service's only job is publishing a
+      correct message.
   - *What breaks without it:* without a publish mechanism, every future consumer (the `bff`, eventually a notifications service) would need this service to call it directly and by name, meaning
     game-engine would need to know about and be modified for every new consumer that ever gets added.
   - *Industry context:*
@@ -307,7 +408,8 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
         as normal rather than prevented. Concretely here: the instant a round resolves, game-engine's own database is immediately correct, but the event announcing that outcome takes a small amount of
         time to actually reach whichever service consumes it — there's a brief window where the source of truth has already moved on but a consumer hasn't caught up yet. Contrast this with a direct,
         synchronous API call, where the caller only gets control back once the other side has already processed the request — slower and more tightly coupled, but no such gap exists.
-  - *Read first:* none of the current list covers Pub/Sub message design directly — a dedicated lookup once this ticket starts.
+  - *Read first:* GCP Pub/Sub's ["Publish messages to topics"](https://cloud.google.com/pubsub/docs/publisher) docs — the concrete publish workflow (topics, message data) this ticket needs, even
+    before any real GCP infrastructure exists locally.
 
 ## Phase 2 — Hidden Information & Fog of War
 
@@ -343,6 +445,29 @@ not the underlying move/combat logic.
 
 ## Phase 3 — Hardening
 
+- [ ] **Set up CI with GitHub Actions.** A workflow runs the test suite and lint on every push/PR; once a real registry exists, a separate step builds this service's Docker image and pushes it,
+  tagged with the commit SHA — the artifact the `platform` repo's ArgoCD side will eventually deploy. Acceptance: a workflow file runs `pytest` and `ruff check` on every PR; the build-and-push step
+  can be stubbed or deferred until Artifact Registry access exists.
+  - *What it is:* GitHub Actions is GitHub's own CI/CD system — a YAML file in `.github/workflows/` describes jobs (each a sequence of steps) that run automatically on events like "a PR was opened"
+    or "code was pushed to main," on GitHub-hosted runners.
+  - *Why we use it:* catches a broken test or lint failure before it's merged, instead of relying on remembering to run the suite locally every time — and later, produces the actual image artifact
+    the deploy ticket depends on.
+  - *How it works:*
+    - The flow: a push/PR triggers → GitHub spins up a fresh runner → checks out the repo → runs each step in order (install deps, test, lint) → reports pass/fail back on the PR.
+    - **Each run starts from a clean environment** — nothing carries over between runs, which is why the workflow has to explicitly install dependencies (`uv sync`) rather than assuming anything's
+      already there.
+    - **The build-and-push step** (once a registry exists) authenticates to it, builds the image from this repo's Dockerfile, tags it with the commit SHA, and pushes it — that tag is what the
+      `platform` repo's manifests eventually get updated to reference.
+  - *What breaks without it:* a broken test or lint issue can get merged silently, discovered later and further from when it was introduced; there's also no automated path from "code merged" to "a
+    new image exists" — deploys would have to be built and pushed by hand every time.
+  - *Industry context:*
+    - *Origin:* GitHub Actions launched in 2019, folding what used to require a separate CI service (Travis CI, CircleCI, Jenkins) directly into GitHub — configured via YAML files living in the
+      repo itself, versioned alongside the code they test.
+    - *Alternatives:* CircleCI and Jenkins (older, more configurable, but external services to maintain separately), GitLab CI (the equivalent if hosted on GitLab instead).
+    - *Tradeoffs:* the path of least friction specifically because this repo is already on GitHub — no separate service to wire up — at the cost of some lock-in to GitHub's specific YAML syntax and
+      runner model versus a more portable CI config.
+  - *Read first:* **Learning GitHub Actions** (Brent Laster) — Chapters 1-2 ("The Basics" and "How Does Actions Work?"), covering triggers, jobs, steps, and runners directly.
+
 - [ ] **Expose a full-current-state endpoint for reconnection.** A rejoining player's client needs to fetch their own complete, correctly-filtered current view of the game in one call, rather than
   relying on missed events. Acceptance: the response is identical in shape and filtering to what a live round-resolution event would have contained.
   - *Why:* without this, a player who refreshes or drops mid-game has no way back into a correctly-filtered view except waiting for the next event to arrive — which might never happen if nothing
@@ -351,7 +476,8 @@ not the underlying move/combat logic.
 
 - [ ] **Deploy.** Containerize and deploy this service to GKE via the `platform` repo's ArgoCD-managed manifests. Acceptance criteria can't be finalized until the `platform` repo exists.
   - *Why:* a game that only runs on one laptop isn't actually shareable — this is what turns the project from "works on my machine" into something a second real person can connect to.
-  - *Read first:* **Kubernetes Up & Running** — once this ticket actually starts, not before.
+  - *Read first:* **Kubernetes Up & Running** for the GKE/orchestration side, and **Google Cloud Certified Associate Cloud Engineer Study Guide** for the GCP-specific pieces (IAM, Cloud SQL, VPC)
+    Kubernetes' own docs won't cover — once this ticket actually starts, not before.
   - *Blocked on:* the `platform` repo being created.
 
 ## Phase 4 — Post-MVP Features
@@ -382,7 +508,7 @@ not the underlying move/combat logic.
 
 - [ ] **Simple AI opponent.** A heuristic (non-learning) bot a player can practice against.
   - *Why:* lets a player exercise the game loop without needing a second human present — useful for testing the core loop itself, too, not just for solo play.
-  - *Read first:* none of the current reading list covers game AI algorithms in depth — worth adding a dedicated book (e.g. on minimax/heuristic search) if this task gets picked up.
+  - *Read first:* **AI for Games** (Ian Millington) — the Board Games chapter, covering minimax, negamax, and alpha-beta pruning directly.
 
 - [ ] **Ranking system.** Track win/loss record and a simple rating (e.g. Elo) across games.
   - *Why:* gives repeat play a reason to matter beyond the outcome of a single match.
