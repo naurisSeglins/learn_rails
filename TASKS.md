@@ -61,6 +61,11 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
           Django's ORM/admin — heavier than needed for a small service like this one).
         - *Tradeoffs:* versus Flask, FastAPI's type-hint-driven validation and dependency injection are powerful but more implicit — more "magic" to learn, less obvious what's happening just from
           reading a route function.
+          - *What this means concretely:* FastAPI lets a route function just declare, as a parameter, something it needs — e.g. a database session — and FastAPI supplies it automatically before the
+            function runs, without you ever writing the line that actually creates it. That's **dependency injection**: instead of a function fetching what it needs itself (Flask-style:
+            `db = get_db_connection()` written explicitly in the body, so you see exactly where `db` came from), it just declares the need in its parameter list (FastAPI-style:
+            `db = Depends(get_db)`) and trusts the framework to call `get_db()` and hand the result over before the function ever runs. Reading the FastAPI version alone doesn't tell you where `db`
+            came from — you have to already know the `Depends(...)` convention to trace it, which is exactly the "more magic, less obvious" tradeoff described above.
     - **uvicorn**
       - *What it is:* FastAPI only knows *what to do* once a request arrives — it has no idea how to open a network socket or listen on a port. uvicorn is the separate program that does that
         networking work, and for every request it receives, calls into your FastAPI app to ask "what's the response?" This is Python's equivalent of Puma in Rails: Rails defines your app, Puma is
@@ -90,14 +95,14 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
       - *What it is:* SQLAlchemy doesn't actually know how to speak to Postgres over the network by itself — it needs a lower-level library ("driver") that knows Postgres's specific message format and
         handles the raw bytes going back and forth. asyncpg is that driver, built specifically to work with Python's `async`/`await` instead of waiting around blocked.
       - *Why we use it:* while one request is waiting on a slow database query, an async driver lets the server go handle a *different* request in the meantime instead of sitting idle doing nothing.
+      - *What breaks without it:* using an ordinary (synchronous) driver like `psycopg2` instead would mean that while any one request waits on the database, the entire server process freezes and
+        can't handle any other request at all — which defeats the reason this stack is async in the first place.
       - *Industry context:*
         - *Origin:* written in large part by Yury Selivanov, who also worked on asyncio's own internals — known for being unusually fast.
         - *Alternatives:* psycopg2 (the long-standing standard Postgres driver, sync-only), psycopg3 (its modern successor, which does support async and is a closer competitor to asyncpg than psycopg2
           is).
         - *Tradeoffs:* asyncpg's speed comes partly from skipping PEP 249 (Python's standard "DB-API" interface most drivers implement for interchangeability) — so it isn't a drop-in swap for other
           PEP 249-compliant tools, and you're relying on SQLAlchemy to abstract that difference away rather than talking to asyncpg directly.
-      - *What breaks without it:* using an ordinary (synchronous) driver like `psycopg2` instead would mean that while any one request waits on the database, the entire server process freezes and
-        can't handle any other request at all — which defeats the reason this stack is async in the first place.
     - **Alembic**
       - *What it is:* a tool that records changes to your database's structure (adding a table, adding a column) as small, numbered script files, each one saying how to apply the change and how to
         undo it. This is the direct equivalent of Rails' `db/migrate` files and `rails db:migrate` — Alembic pairs with SQLAlchemy the way ActiveRecord migrations pair with Rails.
@@ -127,11 +132,16 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
 
 - [ ] **Set up Postgres via SQLAlchemy (async) + Alembic.** Configure an async database connection and confirm a first (empty) Alembic migration runs against a local Postgres instance. This service
   owns its own database — see `docs/architecture.md`'s data-ownership rule.
-  - *Why:*
+  - *What it is:* Postgres (PostgreSQL) is a relational database — software that stores structured data in tables with defined relationships between them, and lets many concurrent connections
+    query and modify that data safely at the same time. It runs as its own separate server process your app connects to over a network socket, unlike SQLite, which is just a file your app reads
+    directly.
+  - *Why we use it:*
     - **Postgres, not SQLite** — SQLite locks the whole file under concurrent writes, a problem the moment two games are being played at once (see `docs/architecture.md`'s "Postgres, not SQLite"
       bullet for the full rationale).
     - **This service owning its own database** — rather than sharing one with a future `market` service, is what makes the multi-repo split actually mean something instead of being a monolith with
       extra network hops (see `docs/architecture.md`'s "One database per service" bullet).
+  - *What breaks without it:* without a real database, this service would need to invent its own way to persist and safely query game state under concurrent access — reinventing transactions,
+    indexing, and concurrency control badly and slowly instead of using tools that have solved these problems for decades.
   - *Industry context:*
     - *Origin:* PostgreSQL, first released in 1996 — one of the oldest actively-developed open-source relational databases, known for strict SQL-standards compliance and a reputation for extensibility
       (custom types, extensions like PostGIS for geodata).
@@ -183,8 +193,13 @@ playable end to end, with hidden info and fog of war layered on in Phase 2.
   - *Read first:* **Python Testing with pytest** — the fixtures/async-test chapter, so config choices here are deliberate.
 
 - [ ] **Add a Dockerfile for local containerization.** A minimal image that runs the FastAPI app via uvicorn — the basis for both local docker-compose use and the eventual GKE deploy.
-  - *Why:* building this now, rather than waiting for the Phase 3 deploy ticket, means every ticket from here on can be sanity-checked in the same environment that will eventually run in production. A
-    container-specific bug (a missing system library, a path assumption that only holds on your laptop) is cheap to catch here and expensive to discover for the first time during an actual deploy.
+  - *What it is:* Docker packages this service together with everything it needs to run (the Python interpreter, installed dependencies, system libraries) into a single portable image, which then
+    runs identically on your laptop, in CI, or in production — the same image, not just "the same code."
+  - *Why we use it:* building this now, rather than waiting for the Phase 3 deploy ticket, means every ticket from here on can be sanity-checked in the same environment that will eventually run in
+    production. A container-specific bug (a missing system library, a path assumption that only holds on your laptop) is cheap to catch here and expensive to discover for the first time during an
+    actual deploy.
+  - *What breaks without it:* without a container image, "works on my machine" has no guarantee of meaning "works anywhere else" — a missing system library or OS-level difference can silently break
+    the app somewhere it was never tested, and there's no single artifact to actually hand to Kubernetes later.
   - *Industry context:*
     - *Origin:* Docker (Solomon Hykes, 2013) didn't invent containers — Linux's own `cgroups` and namespaces predate it by years — it made using them dramatically easier via one consistent CLI and
       image format.
@@ -206,8 +221,12 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
 - [ ] **Create a game with a fixed starting army.** A player starts a new game and receives a shareable code/ID for the second player to join; both players are assigned an identical, hard-coded army
   in a fixed starting formation, and the game begins `in_progress` immediately — no setup phase, no player-driven placement or army selection (see Phase 4 for those, once designed). Acceptance: two
   players can both be attached to the same `Game` record via that code, with no third player able to join, and both start with the same fixed roster already placed on the board.
-  - *Why:* this is the smallest slice that produces a real, shared object two players are actually attached to — every later ticket (moves, combat, win detection) needs a `Game` to operate on, so it
-    has to exist first regardless of what game rules end up being decided.
+  - *What it is:* REST models an API around nouns (resources) rather than verbs — a "game" is a thing that exists at its own URL, and standard HTTP methods (`POST` to create, `GET` to read) act on
+    it, instead of each action getting its own custom-named endpoint.
+  - *Why we use it:* this is the smallest slice that produces a real, shared object two players are actually attached to — every later ticket (moves, combat, win detection) needs a `Game` to operate
+    on, so it has to exist first regardless of what game rules end up being decided.
+  - *What breaks without it:* without treating "a game" as a resource with its own identity, every action needs its own bespoke endpoint and URL scheme invented from scratch, and nothing about the
+    API's shape is predictable from one endpoint to the next.
   - *Industry context:*
     - *Origin:* `POST`-to-create-a-resource, returning an identifier the client uses for everything after, is the core idea of **REST** (Representational State Transfer) — a style described in Roy
       Fielding's 2000 PhD dissertation, not a FastAPI feature. FastAPI doesn't enforce RESTfulness; it just makes it convenient to follow.
@@ -220,8 +239,12 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
 - [ ] **Submit move orders for a round, with a round timer.** A player can queue movement orders for any subset of their own units during the round's countdown timer (each unit capped by its own
   movement allowance), then submit the batch. Acceptance: illegal orders (insufficient movement allowance remaining, moving an immobile unit) are rejected with a generic error; a submitted batch stays
   invisible to the opponent until the round resolves.
-  - *Why:* modeling a queued move as a first-class object (rather than a bag of params) up front is what makes both this ticket's own validation and Phase 4's replay ticket tractable later —
-    retrofitting that structure after moves are already scattered through ad-hoc code is much more expensive than starting with it.
+  - *What it is:* the Command pattern means representing "do this action" as a plain data object (what unit, what destination) instead of immediately executing a function — the object itself can
+    be validated, stored, queued, or replayed before (or instead of) actually being applied.
+  - *Why we use it:* modeling a queued move as a first-class object (rather than a bag of params) up front is what makes both this ticket's own validation and Phase 4's replay ticket tractable
+    later — retrofitting that structure after moves are already scattered through ad-hoc code is much more expensive than starting with it.
+  - *What breaks without it:* without a first-class move object, queuing multiple orders before the round resolves, validating them before applying, and replaying them later (Phase 4) all have to
+    be bolted on after the fact, onto code that was never structured to support any of them.
   - *Industry context:*
     - *Origin:* modeling an action as an object instead of executing it immediately is the **Command pattern**, one of the original Gang-of-Four design patterns (1994) — the same underlying idea
       behind Redux actions in frontend JS, a Git commit, or a database transaction log.
@@ -235,7 +258,11 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
 - [ ] **[BLOCKED] Resolve combat.** Moving into conflict with an opponent's unit — via a direct attack order, a crossed path, or both units arriving on the same square (resolved via the bounce-back
   rule) — triggers a battle. Acceptance criteria can't be written until the combat-resolution math (HP/Attack/Defence formula) is decided — see Open design questions in `docs/architecture.md`. Do not
   start implementation until that's resolved.
-  - *Why:* combat is where two players' independent, simultaneous move batches actually collide — without it, "submit moves" and "declare a winner" have nothing connecting them.
+  - *What it is:* a service object is a plain class whose only job is one piece of business logic — here, resolving a battle — instantiated, given what it needs, and asked to do exactly that one
+    thing, rather than that logic living inside a route handler or a `Game`/`Piece` model method.
+  - *Why we use it:* combat is where two players' independent, simultaneous move batches actually collide — without it, "submit moves" and "declare a winner" have nothing connecting them.
+  - *What breaks without it:* combat-resolution logic ends up scattered across route handlers and models, making it hard to test in isolation and easy to accidentally duplicate or diverge between
+    the places it's needed.
   - *Industry context:*
     - *Origin:* pulling business logic out of a route handler or model into its own object is often called a **service object** (Rails world) or **application service** (Domain-Driven Design
       terminology) — the general principle: framework entry points should stay thin, and logic complex enough to need its own tests deserves its own class.
@@ -246,8 +273,12 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
 
 - [ ] **[BLOCKED] Detect win conditions.** The win condition itself is an open design question (Flag-capture equivalent vs. something else) — see Open design questions in `docs/architecture.md`. Do
   not start implementation until that's resolved.
-  - *Why:* without an explicit terminal state, a finished game would keep silently accepting moves — this is what turns "the game is over" into an enforced guarantee instead of something the UI just
-    happens to assume.
+  - *What it is:* the State pattern means giving a thing (here, a `Game`) an explicit, named current state (e.g. `in_progress`, `finished`) and defining exactly which transitions between states are
+    legal, rather than inferring "is this game still playable?" from scattered conditions elsewhere.
+  - *Why we use it:* without an explicit terminal state, a finished game would keep silently accepting moves — this is what turns "the game is over" into an enforced guarantee instead of something
+    the UI just happens to assume.
+  - *What breaks without it:* without an explicit state machine, "is the game over" ends up checked inconsistently in different places, and it's easy for a code path to accidentally accept a move
+    against a game that should already be finished.
   - *Industry context:*
     - *Origin:* an explicit "what states can this thing be in, and what transitions are legal" model is the **State pattern**, another Gang-of-Four pattern — the same underlying concept as a traffic
       light, a TCP connection, or an order-fulfillment pipeline: nameable states, enforced legal transitions between them.
@@ -259,8 +290,12 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
 
 - [ ] **Publish a round-resolution event.** When a round resolves, this service publishes an event (Pub/Sub) with the outcome. Since MVP has no hidden information yet, one event body is fine for both
   players — this gets split into per-player-filtered events in Phase 2. Acceptance: a test confirms an event is published containing the resolved round's outcome.
-  - *Why:* this is the seam the future `bff` repo will consume to push live updates to a browser connection. Building the publishing mechanism now, even in its simplest unfiltered form, means Phase 2
-    only has to change *what's in* the event, not invent how events get published from scratch.
+  - *What it is:* event-driven architecture means a service announces "this happened" (an event) without knowing or caring who's listening, and any other service that cares subscribes to hear about
+    it — as opposed to the publisher calling every interested party directly.
+  - *Why we use it:* this is the seam the future `bff` repo will consume to push live updates to a browser connection. Building the publishing mechanism now, even in its simplest unfiltered form,
+    means Phase 2 only has to change *what's in* the event, not invent how events get published from scratch.
+  - *What breaks without it:* without a publish mechanism, every future consumer (the `bff`, eventually a notifications service) would need this service to call it directly and by name, meaning
+    game-engine would need to know about and be modified for every new consumer that ever gets added.
   - *Industry context:*
     - *Origin:* publishing a fact ("this happened") for other interested parties to react to, without the publisher knowing or caring who's listening, is **event-driven architecture** — GCP Pub/Sub is
       one implementation of a much older, general idea also implemented by Kafka, RabbitMQ, and AWS SNS/SQS.
@@ -268,6 +303,10 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
       consumer happens to be down at that moment. That's exactly the problem message brokers exist to avoid.
     - *Tradeoffs:* event-driven systems trade that tight coupling for eventual consistency and a harder-to-trace request flow — a bug can be "somewhere in this chain of events" rather than one obvious
       call stack. A real cost, not just a stylistic preference.
+      - *What this means concretely:* **eventual consistency** means: right after something happens, different parts of the system might briefly disagree about the current state, and that's accepted
+        as normal rather than prevented. Concretely here: the instant a round resolves, game-engine's own database is immediately correct, but the event announcing that outcome takes a small amount of
+        time to actually reach whichever service consumes it — there's a brief window where the source of truth has already moved on but a consumer hasn't caught up yet. Contrast this with a direct,
+        synchronous API call, where the caller only gets control back once the other side has already processed the request — slower and more tightly coupled, but no such gap exists.
   - *Read first:* none of the current list covers Pub/Sub message design directly — a dedicated lookup once this ticket starts.
 
 ## Phase 2 — Hidden Information & Fog of War

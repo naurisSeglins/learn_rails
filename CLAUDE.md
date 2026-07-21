@@ -17,6 +17,7 @@ Core technical challenge: hidden information. Each player must only ever receive
 | `docs/architecture.md` | What this project is, system architecture (multi-repo split), data model, transport design, hidden-information handling, key design decisions |
 | `TASKS.md` | MVP scope, phased roadmap, current status, task backlog — scoped to this repo, notes cross-repo dependencies |
 | `books.md` | Technical reading list, ordered by project phase |
+| `exercises.md` | Deliberate-practice log — assigned exercises, conventions, status. Separate from `TASKS.md`'s real project work; see `exercises/` for the actual exercise code |
 | `LICENSE` | All Rights Reserved — public repo, no reuse rights granted |
 
 **`TASKS.md` is the single source of truth for status and what to work on next.** When work is completed, started, or rescoped, update `TASKS.md` in the same session — don't leave it stale, and don't duplicate status information back into this file.
