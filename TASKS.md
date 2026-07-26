@@ -5,6 +5,11 @@ Single source of truth for status and what to work on next. Update this file in 
 This repo is the `game-engine` service (see `docs/architecture.md`'s System architecture table). Tickets below are scoped to this repo; companion repos (`bff`, `frontend`, `market`, `platform`) get
 their own `TASKS.md` once they're created, and a ticket here notes when it depends on one of them existing.
 
+The ticket structure below (Why/Industry context/How it works/Read first/Common pitfalls, the retrieval checkpoint, reference-don't-repeat) is defined once, canonically, in the global
+`~/.claude/CLAUDE.md`'s "Ticket/Task Breakdown Structure" section — full path `/Users/nseglins/.claude/CLAUDE.md` (a hidden dotfolder, not shown by default in Finder/most file trees, but a normal
+file your editor can open directly given that path). It applies across all projects, learning or professional; this file is just where it's actually written down for this one, per that section's
+own rule.
+
 Each task below has:
 - a ***Why:*** line — the reason this ticket exists at all, not just what it asks for. If the reason isn't obvious, it's written out; if it's a deeper architectural rationale, it points at the
   specific line in `docs/architecture.md` rather than repeating it.
