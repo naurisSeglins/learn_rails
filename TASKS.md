@@ -357,6 +357,32 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
     round-timer mechanism options, the race condition to decide ahead of time).
   - *Blocked on:* timer-expiry behavior (auto-submit the queued-so-far batch vs. forced no-op) — see Open design questions in `docs/architecture.md`.
 
+- [ ] **Self-play sandbox mode.** A game where the same authenticated player is registered as both armies, for solo rules/tactics practice without a second human or any bot. Acceptance: a player can
+  create a sandbox game with `player_one_id == player_two_id` set to their own ID, submit move orders for either army through the same move-submission endpoint used elsewhere, and both armies' full
+  state (no hidden rank, no fog of war) is visible in their own response.
+  - *What it is:* the same `Game`/move-submission machinery from the previous two tickets, with one relaxed constraint — normally two different players are each registered to one army; a sandbox game
+    registers one player to both.
+  - *Why we use it:* solo rules/tactics practice doesn't require an opponent that plays *well* — only that legal orders exist for both sides. A human controlling both armies (like playing chess
+    against yourself) satisfies that fully, with no scoring function or decision-making logic involved at all; a heuristic bot was considered and deliberately rejected as unnecessary work for this
+    need.
+  - *How it works:*
+    - The flow: `POST /games` with a sandbox flag → both army slots assigned to the requesting player's own ID → moves for either army submitted and validated through the exact same
+      move-submission endpoint every other game uses.
+    - **No new authorization logic is needed** — the existing rule ("you may only submit orders for the army you're registered as controlling") already permits this, because it's still true in a
+      sandbox game that the submitter controls the army they're submitting for. This is a permission relaxation at the data level (who's registered to what), not a new code path.
+    - Hidden rank and fog of war (Phase 2) don't apply here: those rules exist to stop an *opponent* from seeing your hidden state — in self-play there is no separate opponent, so there's nothing for
+      the rule to protect against. Showing the player everything is correct, not a leak.
+  - *What breaks without it:* solo rules or tactics practice otherwise requires a second human being available, even though that's not actually necessary for this need.
+  - *Industry context:*
+    - *Origin:* "hotseat" or self-play modes are a long-standing convention in board/strategy games (chess, most digital wargames) predating any AI-opponent feature — solving "practice alone" by
+      relaxing turn ownership, not by building an opponent.
+    - *Alternatives:* a heuristic AI opponent that submits moves on its own — considered and rejected for this project; it requires the submitted moves to be *good*, not merely legal, which is
+      meaningfully more work than this ticket's authorization relaxation, for a need this ticket already covers.
+    - *Tradeoffs:* none of real weight — this is close to free once game creation and move submission exist, since it reuses their authorization logic unchanged.
+  - *Read first:* no dedicated reading — this ticket is a direct, small extension of the two tickets immediately above it; re-read their own `Read first` entries if the resource-identity or
+    move-submission mechanics need a refresher.
+  - *Learning notes:* `docs/task_learning_notes/phase_1_mvp_core_game_loop/03_self_play_sandbox_mode.md`.
+
 - [ ] **[BLOCKED] Resolve combat.** Moving into conflict with an opponent's unit — via a direct attack order, a crossed path, or both units arriving on the same square (resolved via the bounce-back
   rule) — triggers a battle. Acceptance criteria can't be written until the combat-resolution math (HP/Attack/Defence formula) is decided — see Open design questions in `docs/architecture.md`. Do not
   start implementation until that's resolved.
@@ -376,7 +402,7 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
     - *Tradeoffs:* an extra class for logic that could technically fit in fewer lines elsewhere — the payoff is testability and CLAUDE.md's "one thing" rule, not raw line count.
   - *Read first:* **Dive Into Design Patterns** and **Practical Object-Oriented Design in Ruby (POODR)** — on extracting a focused service-layer object. Battle resolution is business logic that
     doesn't belong in a route handler or model.
-  - *Learning notes:* `docs/task_learning_notes/phase_1_mvp_core_game_loop/03_resolve_combat.md` — the service-object shape prepared ahead of the still-open combat-math design question.
+  - *Learning notes:* `docs/task_learning_notes/phase_1_mvp_core_game_loop/04_resolve_combat.md` — the service-object shape prepared ahead of the still-open combat-math design question.
 
 - [ ] **[BLOCKED] Detect win conditions.** The win condition itself is an open design question (Flag-capture equivalent vs. something else) — see Open design questions in `docs/architecture.md`. Do
   not start implementation until that's resolved.
@@ -398,7 +424,7 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
     - *Tradeoffs:* a formal state machine is more setup than a boolean flag for a genuinely simple case. Worth it here because "finished" needs to be an enforced guarantee (no further moves accepted
       anywhere), not just a display detail.
   - *Read first:* **Game Programming Patterns** — the State chapter, specifically the "terminal state" framing (a state-machine guard, not an ad-hoc `if`).
-  - *Learning notes:* `docs/task_learning_notes/phase_1_mvp_core_game_loop/04_detect_win_conditions.md` — the `Enum`-backed status field and guard-clause pattern prepared ahead of the still-open
+  - *Learning notes:* `docs/task_learning_notes/phase_1_mvp_core_game_loop/05_detect_win_conditions.md` — the `Enum`-backed status field and guard-clause pattern prepared ahead of the still-open
     win-condition design question.
 
 - [ ] **Publish a round-resolution event.** When a round resolves, this service publishes an event (Pub/Sub) with the outcome. Since MVP has no hidden information yet, one event body is fine for both
@@ -426,7 +452,7 @@ Full visibility both ways, fixed identical armies, no setup phase. See MVP Defin
         synchronous API call, where the caller only gets control back once the other side has already processed the request — slower and more tightly coupled, but no such gap exists.
   - *Read first:* GCP Pub/Sub's ["Publish messages to topics"](https://cloud.google.com/pubsub/docs/publisher) docs — the concrete publish workflow (topics, message data) this ticket needs, even
     before any real GCP infrastructure exists locally.
-  - *Learning notes:* `docs/task_learning_notes/phase_1_mvp_core_game_loop/05_publish_a_round_resolution_event.md` — the Pub/Sub client's non-async `.result()` gotcha, worth knowing before writing
+  - *Learning notes:* `docs/task_learning_notes/phase_1_mvp_core_game_loop/06_publish_a_round_resolution_event.md` — the Pub/Sub client's non-async `.result()` gotcha, worth knowing before writing
     the route (a direct callback to the async coloring problem).
 
 ## Phase 2 — Hidden Information & Fog of War
@@ -664,25 +690,6 @@ not the underlying move/combat logic.
   - *Read first:* **Game Programming Patterns** — the Command chapter, revisited.
 
 ## Phase 5 — Stretch / Scale
-
-- [ ] **Simple AI opponent.** A heuristic (non-learning) bot a player can practice against.
-  - *What it is:* a heuristic, non-learning bot that plays by evaluating possible moves with a fixed scoring function and picking a good one — no machine learning, no training involved.
-  - *Why we use it:* lets a player exercise the game loop without needing a second human present — useful for testing the core loop itself, too, not just for solo play.
-  - *How it works:*
-    - The flow: it's the bot's turn → enumerate legal moves for its units → estimate an outcome for each (via minimax/lookahead against likely opponent responses, per the assigned reading) →
-      score each outcome with a hand-written heuristic (e.g. prefer capturing, prefer not exposing a high-value unit) → submit the highest-scoring move through the exact same endpoint a human
-      would use.
-    - **No special-cased "AI path"** — the bot submits through the public move-submission interface, a good test that the core game loop's API is genuinely usable by any caller, not just a
-      browser.
-  - *What breaks without it:* testing or practicing the game always requires a second human being available — a bot lets solo testing and practice happen anytime.
-  - *Industry context:*
-    - *Origin:* minimax (evaluating a game tree of possible future moves, assuming the opponent also plays well) dates to Claude Shannon's 1949-1950 work on chess-playing programs, refined with
-      alpha-beta pruning shortly after.
-    - *Alternatives:* a much simpler "always pick a random legal move" bot (trivial, but uninteresting to play against), or a full learning-based approach (reinforcement learning, as in
-      DeepMind's Stratego-playing "DeepNash," already noted in `docs/architecture.md` as explicitly out of scope).
-    - *Tradeoffs:* heuristic/minimax bots are easy to build and fully explainable ("it did that because of this score"), but their skill ceiling is capped by the heuristic's quality — a
-      learning-based approach could play far stronger, at implementation cost this project has no reason to pay.
-  - *Read first:* **AI for Games** (Ian Millington) — the Board Games chapter, covering minimax, negamax, and alpha-beta pruning directly.
 
 - [ ] **Ranking system.** Track win/loss record and a simple rating (e.g. Elo) across games.
   - *What it is:* tracking each player's win/loss record and a single numeric rating that rises after a win and falls after a loss, weighted by the opponent's own rating.

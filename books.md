@@ -23,7 +23,6 @@ Sequenced by when each becomes useful for this repo (`game-engine`) specifically
 17. **Learning GitHub Actions** — CI half of the pipeline (test → build → push image), before the `platform` repo's ArgoCD side takes over deployment.
 18. **Google Cloud Certified Associate Cloud Engineer Study Guide** — once deploying to GCP for real.
 19. **Google BigQuery** — once building analytics/leaderboards (Phase 4-equivalent stretch work).
-20. **AI for Games** (Ian Millington) — once the Simple AI opponent ticket (Phase 5) is picked up — the Board Games chapter covers minimax, negamax, and alpha-beta pruning directly, not before.
 
 ## Why each is relevant
 
@@ -46,8 +45,6 @@ Sequenced by when each becomes useful for this repo (`game-engine`) specifically
 17. **Learning GitHub Actions** — CI pipeline design (test → build → push image) that feeds the GitOps loop described in `docs/architecture.md`.
 18. **Google Cloud Certified Associate Cloud Engineer Study Guide** — GCP deployment and infrastructure, now the actual target platform rather than a hypothetical option.
 19. **Google BigQuery** — Analytics, usage reporting, data warehousing for later leaderboard/stats work.
-20. **AI for Games** — The practical, game-industry-focused counterpart to an academic AI textbook; its Board Games chapter covers exactly the minimax/alpha-beta approach a heuristic two-player
-    board-game bot needs, without the broader machine-learning/general-AI scope that would be irrelevant here.
 
 ## Noted gap
 
