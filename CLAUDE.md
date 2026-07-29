@@ -18,7 +18,7 @@ Core technical challenge: hidden information. Each player must only ever receive
 | `TASKS.md` | MVP scope, phased roadmap, current status, task backlog — scoped to this repo, notes cross-repo dependencies |
 | `books.md` | Technical reading list, ordered by project phase |
 | `exercises.md` | Deliberate-practice log — assigned exercises, conventions, status. Separate from `TASKS.md`'s real project work; see `exercises/` for the actual exercise code |
-| `learning_notes.md` | Condensed conceptual deep-dives from reading/discussion (e.g. the async coloring problem) — not tied to a specific ticket, distinct from `books.md`'s reading list |
+| `docs/task_learning_notes/` | One subdirectory per `TASKS.md` phase, one file per ticket inside it — a theoretical basis written before starting (concepts, mechanisms, likely gotchas), extended with real debugging/discussion once the ticket is actually implemented. Tickets not yet started are placeholders |
 | `GLOBAL_CLAUDE_BACKUP.md` | A git-backed mirror of `~/.claude/CLAUDE.md` (the cross-project Claude Code instructions file), kept for laptop-loss recovery — update it whenever the global file changes |
 | `LICENSE` | All Rights Reserved — public repo, no reuse rights granted |
 
