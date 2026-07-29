@@ -5,10 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="4edc5d42-a62c-4325-a517-0b53a7c25573" name="Changes" comment="instructions and doc">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/TASKS.md" beforeDir="false" afterPath="$PROJECT_DIR$/TASKS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/learning_notes.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/books.md" beforeDir="false" afterPath="$PROJECT_DIR$/books.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/architecture.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/architecture.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_1_mvp_core_game_loop/03_resolve_combat.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_1_mvp_core_game_loop/04_detect_win_conditions.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_1_mvp_core_game_loop/05_publish_a_round_resolution_event.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_5_stretch_scale/01_simple_ai_opponent.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_5_stretch_scale/02_ranking_system.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_5_stretch_scale/03_redis_backed_presence_pub_sub.md" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -186,7 +191,15 @@
       <option name="project" value="LOCAL" />
       <updated>1785055802782</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="instructions and doc">
+      <option name="closed" value="true" />
+      <created>1785306082785</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1785306082786</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
