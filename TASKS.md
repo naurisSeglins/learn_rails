@@ -40,6 +40,11 @@ this book and governs every class written from the first model onward, not just 
 Log of major status changes, newest first. Add a new dated entry at the top when something meaningful completes, starts, or gets rescoped — don't edit an old entry to reflect new state, since the
 point is to be able to read the project's history top-down.
 
+### 2026-08-01 — Phase 0 ticket 2 in progress
+Local Postgres running (Postgres.app, port 5433, data directory relocated outside the repo), `learn_dev` database created, `.env` holds `DATABASE_URL`, and a `Settings` class (`pydantic-settings`)
+confirmed reading it correctly at boot. Still open: the async engine/session factory setup and Alembic initialization + first migration — see
+`docs/task_learning_notes/phase_0_project_setup/02_setup_postgres_sqlalchemy_alembic.md` for the detailed debugging log.
+
 ### 2026-07-20 — Phase 0 ticket 1 complete
 `pyproject.toml` now has FastAPI, uvicorn, SQLAlchemy (async), asyncpg, Alembic, and Pydantic as runtime dependencies (previously only the dev group was populated). A minimal `app = FastAPI()` in
 `main.py` boots via `uv run uvicorn main:app --reload`. No models, no routes, no Postgres connection yet — that's the rest of Phase 0.
@@ -587,6 +592,33 @@ not the underlying move/combat logic.
     - *Tradeoffs:* re-fetch-current-state is simpler and sufficient when only the latest state matters; event replay is the right tool when the intermediate steps themselves matter — picking the
       wrong one is either wasted complexity or a missing capability.
   - *Read first:* **Multiplayer Game Programming: Architecting Networked Games** — the section on reconnection and state resynchronization.
+
+- [ ] **[BLOCKED] Verify JWT signature on incoming requests.** `docs/architecture.md`'s tech stack decisions state game-engine verifies the player's JWT signature locally, independent of the BFF —
+  not just trust whatever the BFF forwards. Acceptance criteria can't be written until the auth/identity model is decided — see Open design questions in `docs/architecture.md`. Do not start
+  implementation until that's resolved.
+  - *What it is:* a JWT (JSON Web Token) is a signed, self-contained token — a set of claims (e.g. "this is player X") plus a cryptographic signature proving it hasn't been altered since whoever
+    issued it signed it. "Verifying" one means checking that signature against the issuer's key, not decoding the claims and trusting them blindly.
+  - *Why we use it:* right now, nothing about a request proves who's actually making it beyond knowing a game's shareable code — fine for the MVP's account-less scope, but not once real player
+    identity (accounts, ranking, matchmaking) exists. `architecture.md` deliberately chose *local, independent* verification per service over a central session store, so game-engine doesn't need to
+    call another service just to answer "who is this."
+  - *How it works:*
+    - The flow: a request arrives with a JWT (typically an `Authorization` header) → game-engine checks the signature against the issuer's public key/shared secret → valid → the claims (player ID)
+      are trusted for this request; invalid or expired → the request is rejected before any game logic runs.
+    - **No database or network call needed to verify** — that's the entire point of a signed token over a session ID: the signature alone proves authenticity, locally, per service, every time.
+  - *What breaks without it:* any client could claim to be any player just by naming them in a request — a game where "which player is this" is never actually verified isn't safe to expose past
+    trusted local testing.
+  - *Industry context:*
+    - *Origin:* JWTs (RFC 7519, 2015) became the standard way to pass verifiable identity between independent services without a shared session store — the same problem microservice architectures
+      hit constantly once more than one service needs to recognize the same logged-in user.
+    - *Alternatives:* opaque session tokens looked up against a central session store (simpler to revoke immediately, but every service needs a network round-trip to check one) — the classic
+      stateless-JWT-vs-stateful-session tradeoff.
+    - *Tradeoffs:* a JWT's biggest weakness is exactly its biggest strength — since verification never touches a database, there's no cheap way to revoke one before it naturally expires; short
+      expiry times are the usual mitigation, not a full fix.
+  - *Read first:* **OAuth 2 in Action** — the token validation chapters, once the issuer side is decided.
+  - *Note:* this depends on more than just "which service issues the token" — it also needs a real player-identity/accounts system to exist at all, which itself has no ticket yet. MVP's Phase 1
+    explicitly runs with no accounts (see MVP Definition) — this ticket only becomes actionable once that changes.
+  - *Blocked on:* the auth/identity model — who issues the JWT (the BFF itself, a dedicated auth service, or GCP Identity Platform) is still marked "TBD" in `docs/architecture.md`'s tech stack
+    decisions, and isn't yet in that file's Open design questions list either.
 
 - [ ] **Deploy.** Containerize and deploy this service to GKE via the `platform` repo's ArgoCD-managed manifests. Acceptance criteria can't be finalized until the `platform` repo exists.
   - *What it is:* taking this service's Docker image (Phase 0) and running it on GKE, with the `platform` repo's ArgoCD watching for new image tags and syncing them into the cluster automatically.

@@ -111,6 +111,7 @@ Standing habits that go with this structure:
 - **Retrieval checkpoint** — before considering a ticket done, explain its *How it works* flow back in my own words, not just confirm the thing works. This is "Ask for retrieval, not just comprehension" above, turned into a concrete per-ticket step.
 - **Reference, don't repeat** — once a concept has been fully broken down once, later tickets touching the same concept keep the same structure but can point back ("same pattern as X") instead of a fresh full explanation every time. The structure stays consistent; the depth doesn't need to.
 - **Check "Read first" before re-teaching from scratch** — if I'm visibly unfamiliar with something a ticket's `Read first` already names and describes as covering exactly this, say so and point back to it before launching into a fresh full explanation. A ticket's own `Read first` isn't a formality to skim after the fact — if the material's already there, the right move is a reminder to actually read it, not reflexively re-deriving the same explanation from scratch every time it comes up.
+- **Write a theoretical basis before the work starts, not just notes after it.** My own framing for this: like a physics lab requiring the theoretical basis (*teorētiskais pamatojums*) written before the experiment, not a report of what happened during it. Given how many things needed deep explanation on the first couple of tickets, assume most future tickets will too — anticipate the concepts, mechanisms, and real gotchas a ticket will involve *before* I start it, not only in reaction to getting stuck. This is proactive, not retrospective — a distinct thing from the debugging/discussion notes a ticket accumulates once it's actually underway, and both are worth keeping.
 
 **Where this lives differs by project type:**
 - **Learning projects** (e.g. learn_rails) — write this breakdown directly into the project's own persistent task file (its `TASKS.md` or equivalent) as it's worked through. It becomes permanent project documentation and a compounding knowledge base — worth the slower per-ticket pace, which is the actual point.
@@ -191,7 +192,7 @@ Shared across all projects, not owned by any one of them. Any project can read t
 
 ## Reading Check-ins
 
-_Last reading suggestion: 2026-07-20 — pointed to the event-loop/coroutines-and-tasks chapters of Python Concurrency with asyncio, ahead of learn_rails' first Phase 0 ticket (Poetry/FastAPI init) now that the Rails-to-Python doc rewrite is complete_
+_Last reading suggestion: 2026-08-01 — pointed back to **SQLAlchemy 2 In Practice** Ch. 7's engine/session section (one engine per process, one session per unit of work); learn_rails' `main.py` still wraps the engine/session factory in a class, contradicting the Postgres ticket's own already-concluded module-level design, suggesting the chapter hasn't fully landed yet_
 
 Treat the Technical Reading List above as living, not a one-time artifact.
 

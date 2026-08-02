@@ -54,6 +54,8 @@ Known-unresolved as of this writing. Don't assume an answer when implementing â€
 - **Timer expiry.** If a player doesn't submit their move batch before the round timer runs out, do their queued-so-far orders auto-submit, or is it treated as a forced no-op (units stay put)?
 - **Army selection.** Do both players start from an identical fixed roster (like Stratego's fixed 40 pieces), or do they draft their own mix from a shared point budget?
 - **Win condition & special rules.** Does a Flag-capture (or equivalent) objective still exist? Do any Spy/Marshal/Miner/Bomb-style asymmetric matchups carry over, given the roster is now infantry/horseman/archer-style units with quality tiers instead of fixed ranks?
+- **Auth/identity model.** Who issues the JWT each service verifies â€” the BFF itself, a dedicated auth service, or GCP Identity Platform (all still marked "TBD" below)? Tied to a bigger open
+  question: MVP has no accounts at all yet (see `TASKS.md`'s MVP Definition), so real JWT verification needs a real player-identity system to exist first, and that system isn't designed either.
 
 ## Tech stack decisions
 

@@ -14,16 +14,14 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
-class AsyncEngineSettings():
-  engine = create_async_engine(settings.database_url)
+engine = create_async_engine(settings.database_url)
 
-  session = async_sessionmaker(
+session = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
   )
 
-async_engine = AsyncEngineSettings()
 
 # print(settings.model_config, settings.database_url)
 
