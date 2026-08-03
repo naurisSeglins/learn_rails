@@ -4,12 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4edc5d42-a62c-4325-a517-0b53a7c25573" name="Changes" comment="instructions and doc">
-      <change beforePath="$PROJECT_DIR$/GLOBAL_CLAUDE_BACKUP.md" beforeDir="false" afterPath="$PROJECT_DIR$/GLOBAL_CLAUDE_BACKUP.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/TASKS.md" beforeDir="false" afterPath="$PROJECT_DIR$/TASKS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/architecture.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/architecture.md" afterDir="false" />
+    <list default="true" id="4edc5d42-a62c-4325-a517-0b53a7c25573" name="Changes" comment="instructions and doc + main">
+      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_0_project_setup/01_initialize_project_with_uv.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/task_learning_notes/phase_0_project_setup/01_initialize_project_with_uv.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_0_project_setup/02_setup_postgres_sqlalchemy_alembic.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/task_learning_notes/phase_0_project_setup/02_setup_postgres_sqlalchemy_alembic.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -211,7 +209,15 @@
       <option name="project" value="LOCAL" />
       <updated>1785308185290</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="instructions and doc + main">
+      <option name="closed" value="true" />
+      <created>1785693946715</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1785693946715</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -222,6 +228,7 @@
     <MESSAGE value="intial code and docs" />
     <MESSAGE value="setup and instructions" />
     <MESSAGE value="instructions and doc" />
-    <option name="LAST_COMMIT_MESSAGE" value="instructions and doc" />
+    <MESSAGE value="instructions and doc + main" />
+    <option name="LAST_COMMIT_MESSAGE" value="instructions and doc + main" />
   </component>
 </project>

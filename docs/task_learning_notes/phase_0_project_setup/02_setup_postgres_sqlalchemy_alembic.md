@@ -4,7 +4,7 @@ Companion to this ticket's structured breakdown in `TASKS.md` — that file has 
 file captures the actual discussion, debugging, and side-questions that came up while doing the work, in order — including a full detour into the async "function coloring" problem, triggered by
 this ticket's own assigned reading.
 
-## Getting a local Postgres server running
+## 1. Getting a local Postgres server running
 
 Postgres.app was already installed (found via `PATH`, which included `/Applications/Postgres.app/Contents/Versions/latest/bin`). First attempt to start it failed: port 5432 already in use.
 
@@ -16,7 +16,12 @@ independently of Postgres.app), not a broken install.
 passed explicitly once it's non-default — `psql -p 5433 -l`, `createdb -p 5433 learn_dev` — since they all assume 5432 unless told otherwise. Confirmed the new instance on 5433 by re-running
 `psql -p 5433 -l` and seeing only the fresh instance's default databases (`nseglins`, `postgres`, `template0`, `template1`).
 
-## The client-server database model — why directory doesn't matter but port does
+**Follow-up 1.1 — a second port conflict.** Port 5433 later turned out to collide with an unrelated project too. Same mechanism, different number: reconfigured Postgres.app's server settings to
+listen on 5434 instead and restarted it. Since this only changed which port the *same* server instance listens on — the data directory and everything in it were untouched — `learn_dev` came
+through intact; confirmed with `psql -p 5434 -l` (lists `learn_dev`) and `psql -p 5433 -l` (nothing answers there anymore). Port is a property of the connection, not of the stored data — see
+"Server vs. database" below for why.
+
+## 2. The client-server database model — why directory doesn't matter but port does
 
 **The misconception this corrected:** treating Postgres like SQLite, where "the database" is a file your own process opens and reads directly, and nothing needs to be "running" separately.
 
@@ -30,7 +35,7 @@ SQLite can't do well under concurrent writers.
 sends a request. The port identifies *which server* to talk to (since more than one can run on a machine at once — the work Postgres on 5432, this project's on 5433); the directory you happen to
 be standing in when you type the command never enters into it.
 
-## Postgres's data directory ending up inside the git repo
+## 3. Postgres's data directory ending up inside the git repo
 
 A `psql/` folder was found sitting directly in the repo root, permissions `drwx------` (Postgres itself enforces that restrictive mode on its data directory) — the actual location Postgres.app
 had been pointed at for this instance's data.
@@ -43,7 +48,7 @@ with the app's own filesystem or repo).
 **Fix:** stopped the server in Postgres.app, deleted and recreated the instance on the same port (5433) with its location pointed *outside* any project folder, then deleted the leftover `psql/`
 directory from the repo (`rm -rf`). Nothing of value was lost — only the default template databases existed at that point, nothing project-specific.
 
-## Server vs. database — the actual distinction
+## 4. Server vs. database — the actual distinction
 
 A recurring point of confusion: "I already have a server for this project, why do I also need a database?" These aren't competing things — the server is already-running infrastructure (one
 server can host many databases, like a filing cabinet with many drawers); a database is just one named, isolated space *inside* that server (one drawer). `createdb -p 5433 learn_dev` breaks down
@@ -55,16 +60,21 @@ one named database inside it.
 wherever the server's data directory now lives (outside the repo). The real distinction is *who touches that data directly*: with SQLite, your own process opens the file itself; with Postgres,
 only the server process ever touches the files — your command just sends a message over a connection, and the server acts on its own storage, wherever that happens to be.
 
-## `.env` + `pydantic-settings` — the connection URL
+**Follow-up 4.1 — does this distinction hold up when the port itself changes later?** Yes, and it's the same "who touches the data" argument applied one layer further: the port isn't stored
+*inside* the database at all, it's connection-layer config on the server process. `createdb -p 5433 learn_dev` used `5433` once, as a phone number to reach the server at that moment — it left zero
+trace of that number anywhere in `learn_dev`'s own files. So when the server's listening port later changed to 5434 (1.1 above), the drawer moved with the cabinet for free; nothing about the
+database itself ever referenced 5433 to begin with.
+
+## 5. `.env` + `pydantic-settings` — the connection URL
 
 Connection URL shape: `postgresql+asyncpg://user@host:port/dbname` → `postgresql+asyncpg://nseglins@localhost:5433/learn_dev` for this setup (Postgres.app's local default: trust auth, no
-password, Mac username as the default role).
+password, Mac username as the default role). (Port later became 5434 — see 1.1 above; `.env` was updated to match, no other change needed.)
 
 **Why not hardcoded:** the URL differs per environment (laptop/CI/production point at different servers), and a hardcoded connection string is exactly the kind of thing that ends up committed
 to git by accident — the same category of risk `CLAUDE.md` already flags for secrets in logs/errors. `.env` is already covered by `.gitignore`'s `/.env*` rule, so it's safe from being committed.
 `pydantic-settings` was added as a dependency to load it into a typed object instead of scattering `os.environ.get(...)` calls.
 
-### Writing the `Settings` class — three attempts
+### 5.1 Writing the `Settings` class — three attempts
 
 **Attempt 1:**
 ```python
@@ -107,7 +117,7 @@ print(settings.model_config, settings.database_url)
 `Settings()` builds an actual instance, and `settings.database_url` correctly accesses that instance's attribute. Confirmed working by booting the app and seeing the real value from `.env`
 printed in the terminal — the temporary print line was then deleted once its job was done.
 
-### The engine and session factory
+### 5.2 The engine and session factory
 
 **The mechanism, from the ground up:** Postgres talking requires a network connection; opening a brand-new one per query would be slow (TCP + Postgres auth handshake every time), so
 SQLAlchemy's `AsyncEngine` maintains a *pool* of already-open connections. The engine doesn't run queries itself — it manages the pool and knows how to open more connections when needed, using
@@ -150,12 +160,14 @@ self-report of "I don't understand enough to answer that" immediately, rather th
 gap was in not having read it yet, not the resource being missing. This became a standing rule too: check whether a ticket's assigned reading already covers a point of confusion before
 re-deriving the explanation from scratch.
 
-## Detour: "What Color is Your Function?" (Bob Nystrom) and the async coloring problem
+**Follow-up 5.2.1 — confirmed fixed.** `main.py` now has `engine` and `session_factory`/`session` as plain module-level assignments, no wrapping class — matching the recommendation above.
+
+## 6. Detour: "What Color is Your Function?" (Bob Nystrom) and the async coloring problem
 
 Reached via Chapter 7's own reference to the essay. Worked through using a real example pulled from an old personal project (`buy_coins.js`, a crypto trading bot on GitHub), not a hypothetical —
 chosen deliberately, since concrete code already trusted is how this sticks best.
 
-### The concrete example
+### 6.1 The concrete example
 ```js
 db.all(sql, [], (err, rows) => {        // plain callback — NOT async
   let allCoins = rows
@@ -174,14 +186,14 @@ db.all(sql, [], (err, rows) => {        // plain callback — NOT async
 });
 ```
 
-### Anatomy of `db.all(sql, [], (err, rows) => {...})`
+### 6.2 Anatomy of `db.all(sql, [], (err, rows) => {...})`
 - `db` — an object (a `sqlite3.Database` instance); `.all` — a method on it.
 - Three arguments: `sql` (query text), `[]` (query parameters — see below), and a function.
 - **Higher-order** just means "a function that takes another function as an argument (and/or returns one)." `db.all`'s third argument isn't data — it's a function `db.all` will *call itself*,
   later, once the read finishes. Proof of the mechanism: pass a non-function there (`db.all(sql, [], "hello")`) and it fails at the moment sqlite3 tries to *invoke* "hello" as a function —
   confirming that's literally what happens internally.
 
-### Query parameters (`[]`) vs. writing values into the SQL string — simple, then detailed with code
+### 6.3 Query parameters (`[]`) vs. writing values into the SQL string — simple, then detailed with code
 
 **Simple version:** gluing text together to build a sentence, where one piece comes from someone else — if that piece secretly contains extra "instructions," the reader can't tell your original
 instructions from the sneaky ones anymore, since it's all one sentence now. A placeholder avoids the gluing: "here's my instruction with a blank," separately, "here's the value for the blank" —
@@ -212,7 +224,7 @@ un-merge them afterward.
 In this project's own query (`SELECT id coinId... FROM buy_coins`), there are no `?` placeholders at all — nothing dynamic is inserted — so the array is empty; the function signature always
 expects three arguments in that position regardless.
 
-### Why pass a function instead of getting a value back — simple, then detailed with code
+### 6.4 Why pass a function instead of getting a value back — simple, then detailed with code
 
 **Simple version:** normally you ask a question and stand there waiting for the answer before using it. If the answer takes a while, that wastes your time — so instead you say "here's my
 number, call me back," and go do something else meanwhile.
@@ -245,37 +257,60 @@ console.log("this prints FIRST, immediately");
 proving the call itself finished instantly, well before the real result existed. Only once the scheduled work actually completes does it call `callback(result)` — your function, invoked *by*
 `getDataSlowly`, at the only point the value actually exists. This is exactly `db.all`'s shape: `db.all` is `getDataSlowly`, the disk read is the wait, `(err, rows) => {...}` is the callback.
 
-### "Returns immediately" vs. "fetches all the data" — resolving the apparent contradiction
+### 6.5 "Returns immediately" vs. "fetches all the data" — resolving the apparent contradiction
 
 "Returns immediately" describes the *statement* `db.all(...)` finishing and letting the next line run — not the data being ready. `db.all` starts the read and returns before it's complete; the
 read continues in the background; only once every row is actually retrieved does it call the callback with the real `rows`. The call and the underlying work finish at two different times.
 
-### What "blocked" actually means
+### 6.6 What "blocked" actually means
 
 The one thread running the JavaScript stops advancing and sits idle until one specific thing (the disk finishing) happens. This freezes *everything else* because ordinary JS execution has
 exactly one thread doing all the work — every other pending callback, timer, or request has to take a turn on that same thread. If it's stuck waiting, nothing else can run, not because it's
 forbidden, but because there's no other thread free to run it on.
 
-### Does Node use threads at all?
+**6.6.1 Follow-up — doesn't `setTimeout` contradict this?** `setTimeout(callback, 2000)` clearly lets the code after it run immediately, with the callback only firing ~2 seconds later — which
+looks like two things happening "at once" on one thread. Resolution: the 2-second countdown itself never happens *on* the JS thread at all. `setTimeout` only registers the request with the
+runtime underneath (an instant operation, nothing to do with the 2000ms) and returns immediately; the countdown is tracked entirely by the runtime's own timer facilities (same delegation
+mechanism as the disk read below), and the callback only touches the JS thread once, later, once the timer's elapsed *and* the thread is free. What genuinely blocks is code that runs *directly
+on* the JS thread's own call stack with nothing to delegate to — a synchronous loop, `fs.readFileSync` — since that work isn't waiting on something external, it *is* the thing that needs
+finishing, instruction by instruction, monopolizing the one thread that exists. Bedrock version: waiting requires no CPU work during the wait (delegable to a clock interrupt or an OS completion
+signal); computing does require CPU work, and JS's own code only ever runs on its one thread — waiting is delegable, computing isn't.
+
+### 6.7 Does Node use threads at all?
 
 Yes — internally (via libuv's thread pool) for things like file reads, DNS lookups; this project's own sqlite3 read is one of them. But **your own JavaScript never runs on those threads** —
 they're invisible plumbing that lets the *waiting* happen off the main thread; the result still gets handed back to the single main thread to actually process. Contrast Ruby/Java: when you
 explicitly create a thread there, *your own code* runs on it. In Node, your code is always confined to the one main thread — which is why it still needs callbacks/promises/`async`, even though
 real threads exist under the hood you never write code for directly.
 
-### sqlite3 vs. Postgres — two different "concurrency" questions, not one
+**6.7.1 Follow-up — what actually *is* a thread, and why does JS only give your own code one?** Mechanically, a thread is one independent point of execution — a program counter (next instruction
+to run), its own registers, and its own call stack — that a CPU core can load, run, pause, and later resume exactly where it left off. A process is the bigger container (memory space, file
+handles); a process can hold several threads, and those threads *share* the process's memory, while each keeps its own private stack/registers. A machine with fewer cores than threads still runs
+all of them via the OS scheduler time-slicing — rapidly swapping which thread's saved state sits on a physical core (a context switch); true simultaneity is capped at the physical core count,
+beyond that it's fast interleaving (and why OS threads are comparatively heavy — megabyte-scale stacks, real switch cost — not something to spin up thousands of casually).
+
+JS deliberately gives your own code exactly one thread, not "more when a core needs help," for a reason that has nothing to do with available hardware: if more than one thread ran your own JS,
+they'd share the same mutable memory (the same DOM, the same variables) — meaning two threads could touch the same object at the literal same instant, a race condition, needing locks around
+every shared access to avoid it (a notoriously bug-prone class of problem: deadlocks, non-deterministic timing bugs). One thread for your own code sidesteps this by construction — there's never
+a moment two pieces of your own JS mutate the same variable simultaneously, so a lock is never needed. A deliberate safety/simplicity tradeoff, not a hardware ceiling — and "auto-add a thread
+only when a core spikes" wouldn't fix this either, since the hazard was never "not enough CPU," it's "more than one simultaneous writer to shared memory"; automatic, load-triggered thread
+creation would just make the timing of a race even less predictable. JS's actual answer to real parallelism is Web Workers / `worker_threads`: genuinely separate threads, but with **no shared
+memory** — message-passing only — getting real multi-core parallelism by isolating memory instead of sharing it, unlike Ruby's `Thread` or Java's traditional threads, which hand you real
+shared-memory threads *and* the burden of synchronizing them yourself.
+
+### 6.8 sqlite3 vs. Postgres — two different "concurrency" questions, not one
 
 - **Node's process-level concurrency**: can this one process do other, unrelated things (a different HTTP request, a different timer) while this one query is in flight? This is what "other
   requests" meant in the blocking discussion — not requests to sqlite, requests to the whole process.
 - **sqlite's own database-level concurrency**: can sqlite itself handle multiple simultaneous queries/writes to the *same* file without contention? This is the separate, real
   SQLite-vs-Postgres locking limitation already covered in `docs/architecture.md`.
 
-### Why is sqlite3 (the npm package) callback-based at all?
+### 6.9 Why is sqlite3 (the npm package) callback-based at all?
 
 It predates Promises in JavaScript entirely (standardized 2015, `async`/`await` later still). When its API was designed, callbacks were the *only* mechanism available for "tell me when this
 finishes." Once an API is public and depended on, changing its shape breaks everyone using it — so it stayed callback-shaped even after Promises became the preferred style for new code.
 
-### Why Ruby and (traditional) Java don't have the coloring problem, and why it can't just be copied
+### 6.10 Why Ruby and (traditional) Java don't have the coloring problem, and why it can't just be copied
 
 Two fundamentally different answers to "how does a program wait without freezing":
 
@@ -298,7 +333,7 @@ Two fundamentally different answers to "how does a program wait without freezing
   real OS thread). There's also a genuine, unresolved philosophical disagreement: explicit `async`/`await` makes it *visible* exactly where a function might yield (useful for reasoning about
   correctness); implicit fiber-switching hides that, which can make some concurrency bugs harder to spot.
 
-### Putting it together
+### 6.11 Putting it together
 
 The `buy_coins.js` friction came from `db.all`'s pre-Promise, callback-shaped API (built when that was JS's only option) meeting `ethers.js`'s fully Promise-based API (built after `async`/`await`
 existed) — two different eras answering the same one-thread constraint, that don't compose cleanly. Ruby and traditional Java never needed that constraint, because the OS was doing the "let
@@ -307,6 +342,6 @@ haven't (yet) rebuilt.
 
 ## Status
 
-In progress. Done: Postgres server running locally on port 5433 (data directory relocated outside the repo), `learn_dev` database created, `.env` with `DATABASE_URL`, `pydantic-settings` added
-and a working `Settings` class confirmed reading it correctly. Still open: the async engine + session factory code (module-level, no wrapping class, per the design conclusion above), Alembic
-initialization (`alembic init -t async alembic`), and the first migration.
+In progress. Done: Postgres server running locally on port 5434 (moved from 5433 after a second port conflict — see 1.1; data directory relocated outside the repo), `learn_dev` database created,
+`.env` with `DATABASE_URL`, `pydantic-settings` added and a working `Settings` class confirmed reading it correctly, and the async engine + session factory now correctly module-level in `main.py`
+(no wrapping class — see 5.2.1). Still open: Alembic initialization (`alembic init -t async alembic`) and the first migration.

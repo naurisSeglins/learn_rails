@@ -117,6 +117,13 @@ Standing habits that go with this structure:
 - **Learning projects** (e.g. learn_rails) — write this breakdown directly into the project's own persistent task file (its `TASKS.md` or equivalent) as it's worked through. It becomes permanent project documentation and a compounding knowledge base — worth the slower per-ticket pace, which is the actual point.
 - **Professional/work projects** — do the same breakdown and thinking process in conversation, to actually work through the ticket properly, but never write it into the project's own files, tracker, or PR — it stays in the session only, and isn't persisted anywhere once that session ends. This doesn't conflict with the "Documentation & PRs" rule above (keep PR descriptions and repo docs lean) — the thorough version is for my understanding in the moment, not for the codebase.
 
+## Persistent Notes Files
+
+Whenever a project keeps a persistent notes file for a piece of work (e.g. learn_rails' `docs/task_learning_notes/*.md` per-ticket files, or any project-specific equivalent):
+
+- **Keep it current.** Whenever a conversation surfaces discussion, debugging, a follow-up question, or a decision relevant to a ticket that already has its own notes file, update that file in the same session — don't let it live only in chat, where it's lost once the conversation ends.
+- **Number its sections once they have real content (not while still a placeholder).** `##` sections numbered sequentially (1, 2, 3...), `###` subsections nested under their parent (1.1, 1.2...). When a later session's discussion directly continues an existing subsection rather than starting a new topic, thread it in as a **Follow-up** right where it belongs, one level deeper than its parent (e.g. `6.6.1`) — not appended at the end as if it were a separate topic. A closing status/tracker section (e.g. `## Status`) stays unnumbered; it's not a topic.
+
 ## Technical Reading List
 
 Shared across all projects, not owned by any one of them. Any project can read this list and add to it — when work in some project surfaces a topic this list doesn't cover, add a book here rather than starting a separate per-project list. One flat list, no "existing" vs "new" categorization: title, author, and a short description of why it's relevant to something I've actually worked on.

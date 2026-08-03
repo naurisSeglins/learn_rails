@@ -24,6 +24,8 @@ Core technical challenge: hidden information. Each player must only ever receive
 
 **`TASKS.md` is the single source of truth for status and what to work on next.** When work is completed, started, or rescoped, update `TASKS.md` in the same session — don't leave it stale, and don't duplicate status information back into this file.
 
+Notes-file maintenance and numbering for `docs/task_learning_notes/*.md` is governed by `~/.claude/CLAUDE.md`'s "Persistent Notes Files" section — one ruling for all projects, not restated here.
+
 ## Development Rules
 
 ### Teaching & Collaboration Style
