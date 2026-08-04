@@ -276,6 +276,140 @@ on* the JS thread's own call stack with nothing to delegate to — a synchronous
 finishing, instruction by instruction, monopolizing the one thread that exists. Bedrock version: waiting requires no CPU work during the wait (delegable to a clock interrupt or an OS completion
 signal); computing does require CPU work, and JS's own code only ever runs on its one thread — waiting is delegable, computing isn't.
 
+**6.6.2 Follow-up — who actually decides what gets delegated, and is there a trend toward delegating more?** The compute-vs-wait split itself is fixed by physics, not a language choice — pure
+computation only ever runs on whichever thread executes your code; there's no helper it could be handed to. What *is* a design choice is which side actually implements the delegation, and it's
+not the bare language spec deciding this — `setTimeout`/`fetch`/sockets aren't JS language features at all, they're **host APIs** the *environment* embedding the JS engine provides (the browser's
+own C++ Web APIs; Node's libuv). The core language only ever defines pure computation (variables, functions, control flow); it has no built-in concept of a network or timer. Concretely: libuv
+genuinely uses the OS's non-blocking socket primitives (`epoll`/`kqueue`) for network waits, but for filesystem reads/DNS — where the OS has no equally good non-blocking primitive — it fakes it
+via a real background *thread pool* that blocks there instead, then hands a finished result back to the main thread. Not true delegation-for-free, just relocated blocking. There's a real,
+decades-long industry trend pushing harder toward the "delegate more" side — the **C10k problem** (holding open tens of thousands of mostly-idle connections at once, which a thread-per-connection
+model can't afford, given each OS thread's megabyte-scale cost) is exactly why Node/`asyncio`/Go's event-driven models exist. But the trend only ever pushes *waiting* onto helper systems, never
+computation — a CPU-heavy function still blocks the one thread it runs on, no matter how good the OS's async primitives get.
+
+**6.6.3 Follow-up — 6.6.2, decomposed part by part in plain language.**
+
+**Part A — the compute-vs-wait split is fixed by physics, not a language choice.** Every program is only ever doing one of two things: *computing* (adding numbers, running a loop) or *waiting* for
+something external to finish (a disk, a network reply, a timer). Only waiting can ever be handed off to someone else — computing never can, because "computing" literally means "a CPU executing
+your instructions," and there's no way to get instructions executed except by executing them. This applies to every language equally; nothing about JS/Python's design changes it. → since waiting
+*can* sometimes be delegated, the next question is who actually builds that delegation, and how (Part B).
+
+**Part B — it's not the language spec, it's the host environment providing "host APIs."** JS-the-language only defines pure computation (variables, `if`/`else`, loops, functions) — it has zero
+built-in concept of a network, timer, or file. `setTimeout`/`fetch` aren't part of that spec at all; they're extras bolted on by whichever program is actually *running* your JS (a browser, or
+Node) — the **host environment** — and the extras it adds are **host APIs**. This split exists because JS runs in very different places with very different real capabilities (a browser has a
+screen/network, Node has direct file/OS access), so the language stays computation-only and lets each host decide its own extras. Result: `setTimeout` in a browser and in Node are two completely
+separate C++ implementations behind an identical-looking JS call. → let's see how one host (Node) actually implements this, since it turns out to differ even within one host (Part C).
+
+**Part C — libuv: real delegation for sockets, faked delegation for files.** For network waiting, the OS has a built-in "watch many things, tell me the instant any is ready" feature — `epoll` on
+Linux, `kqueue` on macOS — and libuv uses it directly: genuinely free, no Node thread spent waiting. For file reads/DNS, where the OS has no equally good version of that trick, libuv fakes the
+same experience with a small hidden background **thread pool** (4 by default) — one of those threads blocks the old-fashioned way, just not on the main thread, then hands the result back once
+done. From your JS's point of view both look identical (a callback fires later); underneath, one is genuinely free and the other is blocking relocated to a thread you never see — and the pool is
+small, so many file reads at once queue up behind each other in a way `epoll` never would. → zooming out from this one mechanism to why the industry built all this delegation machinery at all
+(Part D).
+
+**Part D — the C10k problem, and why Node/asyncio/Go exist.** The old, simple server design gave one OS thread per connected person — fine for 50 people, but modern apps can need **ten thousand
+or more** simultaneous mostly-idle connections at once, and giving each its own thread burns gigabytes just holding them open. This wall is nicknamed the **C10k problem**. The fix is Part C's
+mechanism generalized: use the OS's cheap "watch many, notify me" trick so *one* thread tracks all 10,000 waits, spending real CPU only on the handful actually doing something right now — exactly
+why Node, `asyncio`, and Go are built this way. → this could sound like "delegate more, always" — but there's a hard wall to it (Part E).
+
+**Part E — the wall: none of this ever touches computation.** `epoll`, thread pools, event loops — all of it only ever helps the *waiting* half. A genuinely heavy calculation still completely ties
+up whichever one thread runs it, for exactly as long as it takes, no matter how clever the delegation machinery gets — because (Part A again) computing was never delegable to begin with; no OS
+trick can run your instructions without spending a CPU to do it. Concretely, for this project: a FastAPI route doing real computation (not just awaiting Postgres) still freezes the one
+event-loop thread for every other request, exactly like a heavy JS loop would — fixing *that* needs a different tool (a separate process/worker), not something `asyncio`'s event loop can solve
+on its own.
+
+**6.6.4 Follow-up — the whole chain as a diagram.** Two rails sharing one law at the top and one boundary at the bottom: the left rail (computation) is short and never changes; the right rail
+(waiting) is where all the interesting machinery lives, and none of it ever reaches across to the left. Plain text, no renderer needed — single column, top to bottom, same order as the chain
+in 6.6.3:
+
+```
+PART A -- Compute vs. Wait (the fixed law)
+   Every program is only ever doing one of two things: computing, or
+   waiting for something external to finish. Only waiting can ever be
+   delegated to someone else -- computing means "a CPU executing your
+   instructions," and there's no way around actually executing them.
+   True for every language; nothing about JS/Python's design changes it.
+   |
+   v
+ANCHOR -- COMPUTE
+   Always occupies the current thread -- whichever OS thread the
+   scheduler has loaded onto a CPU core right now. No host environment,
+   no OS trick, ever changes this. Stays true the whole way down --
+   shows up again at the wall, below.
+   |
+   v
+PART B -- Host Environment
+   The language spec defines pure computation only (variables, loops,
+   functions) -- it has no built-in concept of a network or timer.
+   setTimeout / fetch / sockets aren't language features; they're Host
+   APIs bolted on by whatever actually runs the code (a browser's own
+   Web APIs, or Node's libuv).
+   |
+   v
+PART C -- how one host actually implements it
+   Network wait: epoll / kqueue -- the OS kernel watches many sockets
+   at once and wakes the thread only when one's ready. Genuinely free;
+   no thread spent waiting.
+   File / DNS wait: libuv thread pool -- a hidden background thread
+   blocks instead, then hands the result back once done. Relocated,
+   not eliminated.
+   |
+   v
+PART D -- why it matters at scale: the C10k problem
+   One OS thread per connection is fine for 50 people, but modern apps
+   need thousands of idle connections at once -- giving each its own
+   thread burns gigabytes just holding them open. The fix: one thread
+   tracking every wait via epoll. Exactly why Node, asyncio, and Go
+   are built this way.
+   |
+   v
+PART E -- THE WALL
+   epoll, thread pools, event loops -- all of it only ever helps the
+   waiting half. A genuinely heavy calculation still ties up whichever
+   thread runs it, because computing was never delegable to begin with.
+   Delegation only ever moves waiting; computation never moves.
+```
+
+### 6.6.5 Follow-up — physically, where does each part live?
+
+The diagram in 6.6.4 only shows the *logical* chain — which idea leads to which. It never says what physical thing each box actually is: what process, what thread, what hardware.
+Everything below reduces to four kinds of physical thing: a **CPU core** (the silicon that executes instructions), an **OS thread** (a schedulable line of execution, always sitting on some
+core when it runs), an **OS process** (a running program with its own memory, containing one or more threads), and the **kernel** (the OS's own privileged code, which can track things
+without spending a thread on them at all).
+
+**Part A — the fixed law.** Not a component at all — it's a constraint imposed by the CPU core itself: a core's execution pipeline can only be mid-instruction for one thread at a time
+(ignoring hyperthreading, which just fakes two). No OS, runtime, or library gets a vote here; it's silicon. → since the core enforces this, the next question is which thread is actually
+sitting on a core right now.
+
+**COMPUTE (the anchor).** Lives on whichever **OS thread** the scheduler currently has loaded onto a **CPU core** — for Node, the one "main thread" inside the `node` process; for Python's
+asyncio, the one thread running the event loop. Nothing exotic: an ordinary OS thread, identical in kind to any other thread on the machine, just the one your own instructions happen to be
+running on. → that thread lives inside something bigger — the actual running program (Part B).
+
+**Part B — Host Environment.** Lives as a real **OS process** — the `node` or `python` executable, with its own PID and memory space, exactly the same kind of thing the local Postgres server
+already is (a long-running program the OS tracks by PID, not a function call). That one binary has the language engine (V8, or CPython) *and* the extra host machinery (libuv for Node;
+`asyncio` + `selectors` for Python) compiled into it. → that process needs to actually watch for network/file completions somewhere — Part C is where.
+
+**Part C — two different physical homes.**
+- *Network wait (epoll/kqueue):* lives inside the **kernel** itself. `epoll`/`kqueue` are kernel data structures reached via a syscall; the main thread calls `epoll_wait()` and the kernel
+  tracks every watched socket, waking the thread only when one's ready. Zero CPU spent on your thread while waiting — the kernel is doing the watching, not a thread.
+- *File/DNS wait (thread pool):* lives on a small number of **extra, real OS threads** libuv spawns (4 by default), inside the same Node process as the main thread, but scheduled
+  independently — genuinely capable of running on a different physical core at the same instant. One of those threads calls a real blocking syscall (`read()`) and just sits there.
+
+→ both eventually have to get noticed by something running continuously — the event loop (Part D).
+
+**Part D — the event loop / C10k.** Not a separate thread or process — ordinary machine instructions (part of libuv/asyncio's own code) executing *on the main thread*, interleaved with your
+own code, whose job is "ask the kernel what's ready, run the matching callback." One thread asking the kernel about 10,000 sockets costs one thread; one-thread-per-connection costs 10,000
+threads (megabytes each). → and no matter how good this gets, it still can't touch the one thing that was never delegable (Part E).
+
+**Part E — the wall.** Lives at the **CPU core's execution pipeline**, on whichever thread happens to be doing the computing — the main thread, a libuv pool thread, a Web Worker, doesn't
+matter which. Real computation is a core spending real cycles, full stop. The kernel and the thread pool only ever solved the *waiting* half (Parts C/D); neither one is a trick for running
+instructions without a core.
+
+**The physical picture, reassembled:** one **OS process** (`node`/`python`) contains a **main thread** (running your code + the event loop) plus a handful of **hidden worker threads**
+(libuv's pool) — both kinds get scheduled onto real **CPU cores** by the OS. Network waits get handed to the **kernel**, which needs no thread at all while waiting. File/DNS waits get handed
+to a **worker thread**, which does block — just invisibly, off the main thread.
+
+----------- paliku šeit - 03/08 ---------------------------
+
 ### 6.7 Does Node use threads at all?
 
 Yes — internally (via libuv's thread pool) for things like file reads, DNS lookups; this project's own sqlite3 read is one of them. But **your own JavaScript never runs on those threads** —
@@ -297,6 +431,14 @@ only when a core spikes" wouldn't fix this either, since the hazard was never "n
 creation would just make the timing of a race even less predictable. JS's actual answer to real parallelism is Web Workers / `worker_threads`: genuinely separate threads, but with **no shared
 memory** — message-passing only — getting real multi-core parallelism by isolating memory instead of sharing it, unlike Ruby's `Thread` or Java's traditional threads, which hand you real
 shared-memory threads *and* the burden of synchronizing them yourself.
+
+**6.7.2 Follow-up — what specifically makes a thread "the main thread"?** Mechanically nothing — every thread (main or not) is the exact same kind of thing described in 6.7.1: its own program
+counter, registers, and stack. "Main" is a role, not a different mechanism: it's the first thread the OS creates when the process starts, and in a browser specifically, the only thread allowed to
+touch the DOM or do rendering. In ordinary (non-Worker) JS, it's also the *only* thread your own code ever runs on — the single-threaded model above is really "your code is confined to the main
+thread specifically," not "there's only one thread in the whole process." The event loop itself isn't a separate thread either — it's just logic (check the timer/callback queue, run whatever's
+ready) that executes *on* the main thread, in between pieces of your own code, whenever the call stack empties. Contrast libuv's background thread pool (6.6.2): those threads do real work but are
+invisible and never run any of your JS — they only hand a finished result back to the main thread to actually process. A Web Worker / Node `worker_thread` is a genuinely separate main-thread-of-
+its-own — its own independent script, own event loop, no shared memory — which is why two workers can't call each other's functions directly, only pass messages.
 
 ### 6.8 sqlite3 vs. Postgres — two different "concurrency" questions, not one
 

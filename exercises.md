@@ -15,4 +15,6 @@ Deliberate practice, separate from the real work tracked in `TASKS.md` — a low
 
 Newest first, same convention as `TASKS.md`'s Current Status — add a new entry when an exercise is assigned, and update its own status in place as it moves from assigned → reviewed, rather than duplicating entries.
 
-No exercises assigned yet.
+### 01 — Async delegation vs. blocking
+
+**Status: assigned.** Prompted by ticket 2's own detour (`docs/task_learning_notes/phase_0_project_setup/02_setup_postgres_sqlalchemy_alembic.md`, sections 6.6.1–6.6.3, 6.7) — a real `asyncio` script proving the delegated-wait vs. thread-monopolizing-block distinction with actual timing measurements, in this project's own stack rather than the notes' JS examples. See `exercises/01_async_delegation_vs_blocking/PROMPT.md`.
