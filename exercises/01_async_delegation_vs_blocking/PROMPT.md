@@ -6,6 +6,13 @@ Prove for yourself, with a real running script, the exact distinction from ticke
 6.6.1–6.6.3 and 6.7): `await`ing something delegates the wait to the runtime and frees the event loop; genuinely blocking code monopolizes the one thread instead. Don't take that on faith from
 an explanation — watch it happen, in your own stack (`asyncio`), not the JS examples in the notes.
 
+## Read first
+
+- Official Python docs, ["Coroutines and Tasks"](https://docs.python.org/3/library/asyncio-task.html) — the exact API this exercise needs (`async def`/`await`, `asyncio.sleep`,
+  `asyncio.gather`, `asyncio.run`), plus its own warning against calling blocking code from inside a coroutine, which is exactly the mistake `blocking_task` is built to demonstrate.
+- **Python Concurrency with asyncio** (Matthew Fowler) — the event-loop/coroutines chapters, already queued in `books.md` for this exact moment; the deeper "why" behind the timing numbers,
+  once the syntax itself is working.
+
 ## What to build
 
 A single Python file, `exercise.py`, in this folder. Standard library only (`asyncio`, `time`) — nothing from `pyproject.toml`'s real dependencies, no FastAPI, no database.

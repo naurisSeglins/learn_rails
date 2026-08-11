@@ -20,3 +20,8 @@ dist/
 # Logs.
 /log/*
 !/log/.keep
+
+# Regenerated context bundle for pasting into assistants without repo access
+# (scripts/build_gemini_context.sh) — derived from other tracked files, not
+# itself worth versioning.
+/gemini_context.md

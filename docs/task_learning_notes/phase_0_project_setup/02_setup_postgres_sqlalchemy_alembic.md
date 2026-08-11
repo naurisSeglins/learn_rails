@@ -286,127 +286,89 @@ decades-long industry trend pushing harder toward the "delegate more" side — t
 model can't afford, given each OS thread's megabyte-scale cost) is exactly why Node/`asyncio`/Go's event-driven models exist. But the trend only ever pushes *waiting* onto helper systems, never
 computation — a CPU-heavy function still blocks the one thread it runs on, no matter how good the OS's async primitives get.
 
-**6.6.3 Follow-up — 6.6.2, decomposed part by part in plain language.**
+### 6.6.3 Compute vs. Wait — the physical stack, all the way down
 
-**Part A — the compute-vs-wait split is fixed by physics, not a language choice.** Every program is only ever doing one of two things: *computing* (adding numbers, running a loop) or *waiting* for
-something external to finish (a disk, a network reply, a timer). Only waiting can ever be handed off to someone else — computing never can, because "computing" literally means "a CPU executing
-your instructions," and there's no way to get instructions executed except by executing them. This applies to every language equally; nothing about JS/Python's design changes it. → since waiting
-*can* sometimes be delegated, the next question is who actually builds that delegation, and how (Part B).
+*Supersedes the original Parts-A-E walkthrough, its diagram, and the two physical-mapping follow-ups that came after it — same conclusion, reached once here instead of three times spread
+across this file.*
 
-**Part B — it's not the language spec, it's the host environment providing "host APIs."** JS-the-language only defines pure computation (variables, `if`/`else`, loops, functions) — it has zero
-built-in concept of a network, timer, or file. `setTimeout`/`fetch` aren't part of that spec at all; they're extras bolted on by whichever program is actually *running* your JS (a browser, or
-Node) — the **host environment** — and the extras it adds are **host APIs**. This split exists because JS runs in very different places with very different real capabilities (a browser has a
-screen/network, Node has direct file/OS access), so the language stays computation-only and lets each host decide its own extras. Result: `setTimeout` in a browser and in Node are two completely
-separate C++ implementations behind an identical-looking JS call. → let's see how one host (Node) actually implements this, since it turns out to differ even within one host (Part C).
+**The premise.** Every program is only ever doing one of two things: computing, or waiting for something external to finish (a disk, a network reply, a timer). Only waiting can ever be handed
+off to someone else — computing means "a CPU executing your instructions," and there's no way to get instructions executed except by executing them. Fixed by physics, not language design;
+equally true for JS, Python, or anything else.
 
-**Part C — libuv: real delegation for sockets, faked delegation for files.** For network waiting, the OS has a built-in "watch many things, tell me the instant any is ready" feature — `epoll` on
-Linux, `kqueue` on macOS — and libuv uses it directly: genuinely free, no Node thread spent waiting. For file reads/DNS, where the OS has no equally good version of that trick, libuv fakes the
-same experience with a small hidden background **thread pool** (4 by default) — one of those threads blocks the old-fashioned way, just not on the main thread, then hands the result back once
-done. From your JS's point of view both look identical (a callback fires later); underneath, one is genuinely free and the other is blocking relocated to a thread you never see — and the pool is
-small, so many file reads at once queue up behind each other in a way `epoll` never would. → zooming out from this one mechanism to why the industry built all this delegation machinery at all
-(Part D).
+**Layer 1 — the CPU core.** Physical silicon: one instruction pointer (a register holding "the address of the next instruction"), one set of general-purpose registers, an ALU (arithmetic/
+logic) (#what is this ???#). Its entire existence is one loop, repeated billions of times a second: *fetch* the instruction the pointer (#what is a pointer how it works and what it actually is ?#)
+addresses (#how does this process works ?#), *decode* what it encodes (#why we decode and encode ? and what do we decode and encode?#), *execute* it (add two registers, load a
+value from memory, jump the pointer elsewhere)(#what is this ? how does it work ?#), advance the pointer(#advance meaning move forward to next instruction ?#), repeat. A core can only ever be mid-instruction(#what ? what is mid-instruction and why mid-instruction?#)
+for one thread at a time because there is physically only one instruction pointer and one register file per core — running a *different* thread means swapping that entire register state out for a different, previously-saved one. (#I think you will need to draw me a diagram/graph for this to be understood#) 
+That swap is a **context switch**, and it isn't something a core does to itself — it's done *to* it, by Layer 2.
 
-**Part D — the C10k problem, and why Node/asyncio/Go exist.** The old, simple server design gave one OS thread per connected person — fine for 50 people, but modern apps can need **ten thousand
-or more** simultaneous mostly-idle connections at once, and giving each its own thread burns gigabytes just holding them open. This wall is nicknamed the **C10k problem**. The fix is Part C's
-mechanism generalized: use the OS's cheap "watch many, notify me" trick so *one* thread tracks all 10,000 waits, spending real CPU only on the handful actually doing something right now — exactly
-why Node, `asyncio`, and Go are built this way. → this could sound like "delegate more, always" — but there's a hard wall to it (Part E).
+**Layer 2 — the OS kernel.** A program too, but the one program allowed to run in **ring 0** ("kernel mode") rather than **ring 3** ("user mode") — a hardware-enforced privilege level, not a
+software convention. Certain instructions (talk directly to a disk/network controller, change which memory a process may touch, halt the machine) are only legal in ring 0. This exists because
+if *any* program could do those things, one buggy or malicious program could read another process's memory or corrupt disk I/O for everyone — so all of that power is funneled through one
+trusted, shared gatekeeper. Two things it does that matter here:
+- **The scheduler** — keeps a queue of runnable threads per core. On a timer interrupt (every few milliseconds) or whenever a thread blocks, it picks the next thread to run and performs the
+  context switch: save the outgoing thread's registers into its kernel-tracked control block, load the incoming thread's saved registers, jump to its saved instruction pointer.
+- **`epoll`/`kqueue`** — a kernel-side data structure per "epoll instance": watched file descriptors plus a separate ready-list. Registering interest in a socket hooks a wake-up callback onto
+  that socket's own kernel object, so when a hardware interrupt (a network packet arriving) causes the kernel's networking code to mark it "has data," the callback fires: move the fd to the
+  ready list, wake whoever's blocked on it.
 
-**Part E — the wall: none of this ever touches computation.** `epoll`, thread pools, event loops — all of it only ever helps the *waiting* half. A genuinely heavy calculation still completely ties
-up whichever one thread runs it, for exactly as long as it takes, no matter how clever the delegation machinery gets — because (Part A again) computing was never delegable to begin with; no OS
-trick can run your instructions without spending a CPU to do it. Concretely, for this project: a FastAPI route doing real computation (not just awaiting Postgres) still freezes the one
-event-loop thread for every other request, exactly like a heavy JS loop would — fixing *that* needs a different tool (a separate process/worker), not something `asyncio`'s event loop can solve
-on its own.
+**Layer 3 — the host process (this project: Python + uvicorn).** An ordinary **user-mode** OS process — same category of thing as Postgres's postmaster, different code. Bundles the
+**language engine** (CPython) and the **host-API library** (`asyncio` + `selectors`). CPython doesn't execute your `.py` text directly: it first compiles it to **bytecode** (a lower-level
+instruction set of its own — `LOAD_FAST`, `CALL_FUNCTION`, etc.), then runs a C-level **eval loop** — a dispatch over bytecode instructions — that itself executes as ordinary machine code on
+a Layer-1 core. So "your code runs" bottoms out in: CPython's own eval-loop C code executing on a core, one bytecode instruction at a time — a software version of Layer 1's fetch-decode-
+execute loop, one level up.
 
-**6.6.4 Follow-up — the whole chain as a diagram.** Two rails sharing one law at the top and one boundary at the bottom: the left rail (computation) is short and never changes; the right rail
-(waiting) is where all the interesting machinery lives, and none of it ever reaches across to the left. Plain text, no renderer needed — single column, top to bottom, same order as the chain
-in 6.6.3:
+*Not all waiting inside Layer 3 is equally free.* For network sockets, Layer 3 uses `epoll`/`kqueue` directly — genuinely free, Layer 2 does the watching, no thread spent. For file reads and
+DNS lookups, where the OS has no equally good non-blocking primitive, Layer 3 fakes the same experience: it spawns a small number of extra, real OS threads (a thread pool — 4 by default in
+Node's libuv; Python's asyncio has an equivalent default executor) and has one of them make an old-fashioned *blocking* syscall. It still blocks — just on a thread you never see. Relocated,
+not eliminated.
+
+**Layer 4 — your own code.** Route handlers, coroutines. The bytecode CPython's eval loop is currently stepping through. Nothing physically new — the top of the stack, not a separate
+mechanism.
 
 ```
-PART A -- Compute vs. Wait (the fixed law)
-   Every program is only ever doing one of two things: computing, or
-   waiting for something external to finish. Only waiting can ever be
-   delegated to someone else -- computing means "a CPU executing your
-   instructions," and there's no way around actually executing them.
-   True for every language; nothing about JS/Python's design changes it.
-   |
-   v
-ANCHOR -- COMPUTE
-   Always occupies the current thread -- whichever OS thread the
-   scheduler has loaded onto a CPU core right now. No host environment,
-   no OS trick, ever changes this. Stays true the whole way down --
-   shows up again at the wall, below.
-   |
-   v
-PART B -- Host Environment
-   The language spec defines pure computation only (variables, loops,
-   functions) -- it has no built-in concept of a network or timer.
-   setTimeout / fetch / sockets aren't language features; they're Host
-   APIs bolted on by whatever actually runs the code (a browser's own
-   Web APIs, or Node's libuv).
-   |
-   v
-PART C -- how one host actually implements it
-   Network wait: epoll / kqueue -- the OS kernel watches many sockets
-   at once and wakes the thread only when one's ready. Genuinely free;
-   no thread spent waiting.
-   File / DNS wait: libuv thread pool -- a hidden background thread
-   blocks instead, then hands the result back once done. Relocated,
-   not eliminated.
-   |
-   v
-PART D -- why it matters at scale: the C10k problem
-   One OS thread per connection is fine for 50 people, but modern apps
-   need thousands of idle connections at once -- giving each its own
-   thread burns gigabytes just holding them open. The fix: one thread
-   tracking every wait via epoll. Exactly why Node, asyncio, and Go
-   are built this way.
-   |
-   v
-PART E -- THE WALL
-   epoll, thread pools, event loops -- all of it only ever helps the
-   waiting half. A genuinely heavy calculation still ties up whichever
-   thread runs it, because computing was never delegable to begin with.
-   Delegation only ever moves waiting; computation never moves.
+Layer 4  Your code (route handlers, coroutines)
+              |
+Layer 3  Host process: CPython + asyncio        <- an OS process, PID and all
+              |  (syscall crossing, walked through below)
+Layer 2  OS kernel: scheduler + epoll/kqueue    <- privileged, kernel-mode code
+              |  (context switch)
+Layer 1  CPU core                                <- physical silicon
 ```
 
-### 6.6.5 Follow-up — physically, where does each part live?
+**The 2↔3 crossing, slowly — what actually happens on a syscall.** Say asyncio needs "wake me when any of these sockets has data" (`epoll_wait`):
 
-The diagram in 6.6.4 only shows the *logical* chain — which idea leads to which. It never says what physical thing each box actually is: what process, what thread, what hardware.
-Everything below reduces to four kinds of physical thing: a **CPU core** (the silicon that executes instructions), an **OS thread** (a schedulable line of execution, always sitting on some
-core when it runs), an **OS process** (a running program with its own memory, containing one or more threads), and the **kernel** (the OS's own privileged code, which can track things
-without spending a thread on them at all).
+1. asyncio's C code (still ordinary Layer-3 user-mode instructions) loads two things into fixed CPU registers: which operation this is (a number — `epoll_wait` is syscall #232 on x86-64
+   Linux) and its arguments. Nothing special yet — this is normal computation.
+2. It executes one specific instruction built exactly for this: `syscall` (x86-64) or `svc` (ARM64 — e.g. Apple Silicon). This single instruction is the *entire* doorway between user code and
+   the kernel.
+3. The CPU, in hardware, does three things atomically the instant it executes that instruction: flips the core's privilege level from ring 3 to ring 0; saves the current instruction pointer
+   so it knows where to resume afterward; jumps — not anywhere the calling program chooses, but to one single, fixed address the kernel registered when the machine booted. User code can
+   trigger *only* this one kernel-controlled entry point, never arbitrary kernel code — that's precisely what makes it safe.
+4. Kernel code now executes — on the *same physical core*, in the *same thread's* context, just with elevated privilege. It reads "232," recognizes `epoll_wait`, and checks its own internal
+   ready-list for this epoll instance.
+5. Two branches:
+   - **Already ready:** the kernel fills in the answer, executes the paired return instruction (`sysret`/ARM equivalent), flips privilege back to ring 3, jumps back to the saved instruction
+     pointer. A handful of CPU cycles; the thread never stopped, it just took a very short detour through kernel code.
+   - **Nothing ready yet (the real async case):** the kernel marks the thread blocked (removed from the scheduler's runnable list), and the scheduler immediately context-switches the core to
+     a different runnable thread. Separately, back when the socket was registered (`epoll_ctl`), the kernel had already wired a hook onto it: when the network card's hardware eventually
+     raises an interrupt for an arriving packet, the interrupt handler marks that file descriptor ready and puts the blocked thread back on the runnable list.
+6. Later, the scheduler picks the thread again (a context switch onto some core — not necessarily the same physical one). Execution resumes exactly where `epoll_wait`'s kernel code left off,
+   sees data is ready, and takes the same "return to user mode" path as the fast branch above.
+7. Control lands back in asyncio's C code (Layer 3), right after the original `syscall` instruction, result sitting in a register. asyncio marks the corresponding Future/coroutine resolved;
+   the event loop, on its next pass, hands control to your `await`ed code (Layer 4).
 
-**Part A — the fixed law.** Not a component at all — it's a constraint imposed by the CPU core itself: a core's execution pipeline can only be mid-instruction for one thread at a time
-(ignoring hyperthreading, which just fakes two). No OS, runtime, or library gets a vote here; it's silicon. → since the core enforces this, the next question is which thread is actually
-sitting on a core right now.
+Nothing here makes the thread stop existing or move to different hardware conceptually — it's the same OS thread throughout. What changes is only *whether it currently has a core underneath
+it*, and that's the scheduler's call, not asyncio's and not yours.
 
-**COMPUTE (the anchor).** Lives on whichever **OS thread** the scheduler currently has loaded onto a **CPU core** — for Node, the one "main thread" inside the `node` process; for Python's
-asyncio, the one thread running the event loop. Nothing exotic: an ordinary OS thread, identical in kind to any other thread on the machine, just the one your own instructions happen to be
-running on. → that thread lives inside something bigger — the actual running program (Part B).
+**The conclusion (the wall).** None of Layers 1–3's machinery — `epoll`, the thread pool, the scheduler, the event loop — ever touches *computation*. A genuinely heavy calculation still
+completely ties up whichever thread runs it, for exactly as long as it takes, because (the premise, again) computing was never delegable to begin with; no OS trick can execute your
+instructions without spending a core's cycles on them. Concretely, for this project: a FastAPI route doing real computation (not just awaiting Postgres) still freezes the one event-loop
+thread for every other request — fixing that needs a different tool (a separate process/worker), not something `asyncio`'s event loop can solve on its own.
 
-**Part B — Host Environment.** Lives as a real **OS process** — the `node` or `python` executable, with its own PID and memory space, exactly the same kind of thing the local Postgres server
-already is (a long-running program the OS tracks by PID, not a function call). That one binary has the language engine (V8, or CPython) *and* the extra host machinery (libuv for Node;
-`asyncio` + `selectors` for Python) compiled into it. → that process needs to actually watch for network/file completions somewhere — Part C is where.
-
-**Part C — two different physical homes.**
-- *Network wait (epoll/kqueue):* lives inside the **kernel** itself. `epoll`/`kqueue` are kernel data structures reached via a syscall; the main thread calls `epoll_wait()` and the kernel
-  tracks every watched socket, waking the thread only when one's ready. Zero CPU spent on your thread while waiting — the kernel is doing the watching, not a thread.
-- *File/DNS wait (thread pool):* lives on a small number of **extra, real OS threads** libuv spawns (4 by default), inside the same Node process as the main thread, but scheduled
-  independently — genuinely capable of running on a different physical core at the same instant. One of those threads calls a real blocking syscall (`read()`) and just sits there.
-
-→ both eventually have to get noticed by something running continuously — the event loop (Part D).
-
-**Part D — the event loop / C10k.** Not a separate thread or process — ordinary machine instructions (part of libuv/asyncio's own code) executing *on the main thread*, interleaved with your
-own code, whose job is "ask the kernel what's ready, run the matching callback." One thread asking the kernel about 10,000 sockets costs one thread; one-thread-per-connection costs 10,000
-threads (megabytes each). → and no matter how good this gets, it still can't touch the one thing that was never delegable (Part E).
-
-**Part E — the wall.** Lives at the **CPU core's execution pipeline**, on whichever thread happens to be doing the computing — the main thread, a libuv pool thread, a Web Worker, doesn't
-matter which. Real computation is a core spending real cycles, full stop. The kernel and the thread pool only ever solved the *waiting* half (Parts C/D); neither one is a trick for running
-instructions without a core.
-
-**The physical picture, reassembled:** one **OS process** (`node`/`python`) contains a **main thread** (running your code + the event loop) plus a handful of **hidden worker threads**
-(libuv's pool) — both kinds get scheduled onto real **CPU cores** by the OS. Network waits get handed to the **kernel**, which needs no thread at all while waiting. File/DNS waits get handed
-to a **worker thread**, which does block — just invisibly, off the main thread.
+**Old vocabulary, for reference.** Earlier passes through this material used "Part A/B/C/D/E" labels. Part A = the premise above. Part B = Layer 3. Part C = the two branches inside Layer 3's
+waiting strategy (`epoll`/`kqueue` vs. the thread-pool fallback). Part D mixed a real component (the event loop, folded into Layer 3 above) with pure motivation (the **C10k problem**: one
+thread per connection burns gigabytes at 10,000+ idle connections — exactly why Node/asyncio/Go track waits this way instead). Part E = the conclusion above.
 
 ----------- paliku šeit - 03/08 ---------------------------
 
