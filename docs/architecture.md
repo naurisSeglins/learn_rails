@@ -20,6 +20,14 @@ The system is split across multiple repositories, each independently deployable,
 
 Each service owns its own Postgres database; no service queries another's tables directly. A service that needs data it doesn't own calls that service's API (synchronous, when the answer is needed immediately) or consumes an event it published (when the caller only needs to know something happened, not to block on the answer).
 
+### Why the BFF is its own service, not folded into game-engine
+
+Single-responsibility: `game-engine` owns board state, turn resolution, and the hidden-information boundary — a domain problem. Terminating the player's browser WebSocket connection, verifying their JWT on every message, and fanning out per-player-filtered updates is a *transport/session* problem, not a domain one. Folding the two together means every future frontend concern (auth scheme changes, a new client platform, aggregating a second backend once `market` exists) forces a change in the same service that also has to stay correct about hidden ranks — two unrelated reasons to touch the same code, which is exactly what single-responsibility warns against.
+
+It also matters once `market` exists: the frontend needs data from *two* backend services (an active game from `game-engine`, inventory from `market`) to render one screen. Without a BFF, the browser either calls both services directly (leaking two service URLs and two auth checks into client code) or `game-engine` starts reaching into `market`'s concerns to answer on its behalf (breaking the "no service reads another's data directly" rule above). The BFF is the one place that's allowed to know about both, because composing per-client views is its actual job.
+
+This is a real, contested architecture choice, not a settled industry default — worth knowing the alternative. A structural look at GoCardless's own repos (a real multi-service company, for comparison) found no dedicated aggregating BFF: each dashboard frontend (`fraud-dashboard`, `enterprise-dashboard`) calls backend services like `payments-service` directly from client-side code, and `ui-hub`'s `server.ts` is a thin Fastify reverse-proxy that stitches multiple *frontend* micro-apps under one origin by URL path — composing frontends, not aggregating backend API calls. `payments-service` itself serves one narrow browser surface (the hosted payment page) directly, with no BFF in front of it at all. This is direct-client-to-microservice architecture with micro-frontend composition at the edge, a legitimate alternative to a BFF — plausibly (this is inference, not something documented anywhere I read) because at that scale a shared aggregation layer becomes a cross-team bottleneck every frontend team must coordinate through, and retrofitting one onto already-entrenched direct-calling patterns is a bigger migration than choosing one on a greenfield project. Neither shape is "more correct" in the abstract; the BFF earns its keep here specifically because this project has one client, one hidden-information boundary to enforce consistently, and will soon have two backends to aggregate for that one client.
+
 Local development across multiple repos assumes they're checked out as sibling directories on disk; the compose/orchestration file describing how to run them together lives in the `platform` repo once it exists, not in any one service's repo.
 
 ## Game rules (reference)
@@ -46,6 +54,8 @@ Known-unresolved as of this writing. Don't assume an answer when implementing �
 - **Timer expiry.** If a player doesn't submit their move batch before the round timer runs out, do their queued-so-far orders auto-submit, or is it treated as a forced no-op (units stay put)?
 - **Army selection.** Do both players start from an identical fixed roster (like Stratego's fixed 40 pieces), or do they draft their own mix from a shared point budget?
 - **Win condition & special rules.** Does a Flag-capture (or equivalent) objective still exist? Do any Spy/Marshal/Miner/Bomb-style asymmetric matchups carry over, given the roster is now infantry/horseman/archer-style units with quality tiers instead of fixed ranks?
+- **Auth/identity model.** Who issues the JWT each service verifies — the BFF itself, a dedicated auth service, or GCP Identity Platform (all still marked "TBD" below)? Tied to a bigger open
+  question: MVP has no accounts at all yet (see `TASKS.md`'s MVP Definition), so real JWT verification needs a real player-identity system to exist first, and that system isn't designed either.
 
 ## Tech stack decisions
 

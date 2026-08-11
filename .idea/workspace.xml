@@ -4,9 +4,16 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4edc5d42-a62c-4325-a517-0b53a7c25573" name="Changes" comment="intial code and docs">
+    <list default="true" id="4edc5d42-a62c-4325-a517-0b53a7c25573" name="Changes" comment="docs and instructions and exercise">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/TASKS.md" beforeDir="false" afterPath="$PROJECT_DIR$/TASKS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/GLOBAL_CLAUDE_BACKUP.md" beforeDir="false" afterPath="$PROJECT_DIR$/GLOBAL_CLAUDE_BACKUP.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_0_project_setup/02_setup_postgres_sqlalchemy_alembic.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/task_learning_notes/phase_0_project_setup/02_setup_postgres_sqlalchemy_alembic.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/exercises.md" beforeDir="false" afterPath="$PROJECT_DIR$/exercises.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/exercises/01_async_delegation_vs_blocking/PROMPT.md" beforeDir="false" afterPath="$PROJECT_DIR$/exercises/01_async_delegation_vs_blocking/PROMPT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/exercises/01_async_delegation_vs_blocking/exercise.py" beforeDir="false" afterPath="$PROJECT_DIR$/exercises/01_async_delegation_vs_blocking/exercise.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/exercises/01_async_delegation_vs_blocking/test_exercise.py" beforeDir="false" afterPath="$PROJECT_DIR$/exercises/01_async_delegation_vs_blocking/test_exercise.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,23 +31,24 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;com.intellij.lang.ruby.rbs.tools.collection.workspace.sync.RbsCollectionUpdateProjectActivity#LAST_UPDATE_TIMESTAMP&quot;: &quot;1784267213640&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;init__project&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/nseglins/Udemy/learn_rails&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "com.intellij.lang.ruby.rbs.tools.collection.workspace.sync.RbsCollectionUpdateProjectActivity#LAST_UPDATE_TIMESTAMP": "1785825080458",
+    "git-widget-placeholder": "2nd__task__setup__postgres",
+    "last_opened_file_path": "/Users/nseglins/Udemy/learn_rails",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "terminal",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RunManager" selected="Rails.learn_rails">
     <configuration name="learn_rails" type="RailsRunConfigurationType" factoryName="Rails">
       <module name="learn_rails" />
@@ -51,11 +59,7 @@
       <RAILS_SERVER_CONFIG_SETTINGS_ID NAME="ALTERN_SDK_NAME" VALUE="" />
       <RAILS_SERVER_CONFIG_SETTINGS_ID NAME="myPassParentEnvs" VALUE="true" />
       <EXTENSION ID="BundlerRunConfigurationExtension" BUNDLE_MODE="AUTO" bundleExecEnabled="true" />
-      <EXTENSION ID="RubyCoverageRunConfigurationExtension" track_test_folders="true" runner="rcov" ENABLE_BRANCH_COVERAGE="true" ENABLE_FORKED_COVERAGE="true">
-        <COVERAGE_PATTERN ENABLED="true">
-          <PATTERN REGEXPS="/.rvm/" INCLUDED="false" />
-        </COVERAGE_PATTERN>
-      </EXTENSION>
+      <EXTENSION ID="RubyCoverageRunConfigurationExtension" runner="rcov" />
       <EXTENSION ID="org.jetbrains.plugins.ruby.rails.run.RailsRunConfigurationExtension" SCRATCH_USE_RAILS_RUNNER="false" />
       <RAILS_SERVER_CONFIG_SETTINGS_ID NAME="SCRIPT_ARGS" VALUE="" />
       <RAILS_SERVER_CONFIG_SETTINGS_ID NAME="PORT" VALUE="3000" />
@@ -75,11 +79,7 @@
       <RAKE_RUN_CONFIG_SETTINGS_ID NAME="ALTERN_SDK_NAME" VALUE="" />
       <RAKE_RUN_CONFIG_SETTINGS_ID NAME="myPassParentEnvs" VALUE="true" />
       <EXTENSION ID="BundlerRunConfigurationExtension" BUNDLE_MODE="AUTO" bundleExecEnabled="true" />
-      <EXTENSION ID="RubyCoverageRunConfigurationExtension" track_test_folders="true" runner="rcov" ENABLE_BRANCH_COVERAGE="true" ENABLE_FORKED_COVERAGE="true">
-        <COVERAGE_PATTERN ENABLED="true">
-          <PATTERN REGEXPS="/.rvm/" INCLUDED="false" />
-        </COVERAGE_PATTERN>
-      </EXTENSION>
+      <EXTENSION ID="RubyCoverageRunConfigurationExtension" runner="rcov" />
       <EXTENSION ID="org.jetbrains.plugins.ruby.rails.run.RailsRunConfigurationExtension" SCRATCH_USE_RAILS_RUNNER="false" />
       <RAKE_RUN_CONFIG_SETTINGS_ID NAME="RAKE_TASK_NAME" VALUE="spec" />
       <RAKE_RUN_CONFIG_SETTINGS_ID NAME="RAKE_TASK_ARGS" VALUE="" />
@@ -102,11 +102,7 @@
         <env name="RAILS_ENV" value="test" />
       </envs>
       <EXTENSION ID="BundlerRunConfigurationExtension" BUNDLE_MODE="AUTO" bundleExecEnabled="true" />
-      <EXTENSION ID="RubyCoverageRunConfigurationExtension" track_test_folders="true" runner="rcov" ENABLE_BRANCH_COVERAGE="true" ENABLE_FORKED_COVERAGE="true">
-        <COVERAGE_PATTERN ENABLED="true">
-          <PATTERN REGEXPS="/.rvm/" INCLUDED="false" />
-        </COVERAGE_PATTERN>
-      </EXTENSION>
+      <EXTENSION ID="RubyCoverageRunConfigurationExtension" runner="rcov" />
       <EXTENSION ID="org.jetbrains.plugins.ruby.rails.run.RailsRunConfigurationExtension" SCRATCH_USE_RAILS_RUNNER="false" />
       <RAKE_RUN_CONFIG_SETTINGS_ID NAME="RAKE_TASK_NAME" VALUE="test" />
       <RAKE_RUN_CONFIG_SETTINGS_ID NAME="RAKE_TASK_ARGS" VALUE="" />
@@ -134,6 +130,7 @@
       <option name="presentableId" value="Default" />
       <updated>1784267153371</updated>
       <workItem from="1784267154689" duration="23036000" />
+      <workItem from="1785825017313" duration="27926000" />
     </task>
     <task id="LOCAL-00001" summary="intial documents">
       <option name="closed" value="true" />
@@ -159,7 +156,79 @@
       <option name="project" value="LOCAL" />
       <updated>1784571162115</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="intial code and docs">
+      <option name="closed" value="true" />
+      <created>1784622690259</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1784622690259</updated>
+    </task>
+    <task id="LOCAL-00005" summary="setup and instructions">
+      <option name="closed" value="true" />
+      <created>1785055671393</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1785055671393</updated>
+    </task>
+    <task id="LOCAL-00006" summary="instructions and doc">
+      <option name="closed" value="true" />
+      <created>1785055802782</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1785055802782</updated>
+    </task>
+    <task id="LOCAL-00007" summary="instructions and doc">
+      <option name="closed" value="true" />
+      <created>1785306082785</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1785306082786</updated>
+    </task>
+    <task id="LOCAL-00008" summary="instructions and doc">
+      <option name="closed" value="true" />
+      <created>1785308154517</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1785308154517</updated>
+    </task>
+    <task id="LOCAL-00009" summary="instructions and doc">
+      <option name="closed" value="true" />
+      <created>1785308185290</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1785308185290</updated>
+    </task>
+    <task id="LOCAL-00010" summary="instructions and doc + main">
+      <option name="closed" value="true" />
+      <created>1785693946715</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1785693946715</updated>
+    </task>
+    <task id="LOCAL-00011" summary="docs and instructions">
+      <option name="closed" value="true" />
+      <created>1785740993164</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1785740993164</updated>
+    </task>
+    <task id="LOCAL-00012" summary="docs and instructions and exercise">
+      <option name="closed" value="true" />
+      <created>1785827516018</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1785827516018</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -168,6 +237,11 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="intial documents" />
     <MESSAGE value="intial code and docs" />
-    <option name="LAST_COMMIT_MESSAGE" value="intial code and docs" />
+    <MESSAGE value="setup and instructions" />
+    <MESSAGE value="instructions and doc" />
+    <MESSAGE value="instructions and doc + main" />
+    <MESSAGE value="docs and instructions" />
+    <MESSAGE value="docs and instructions and exercise" />
+    <option name="LAST_COMMIT_MESSAGE" value="docs and instructions and exercise" />
   </component>
 </project>
