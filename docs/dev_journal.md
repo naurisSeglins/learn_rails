@@ -25,4 +25,8 @@ Newest entry at the top. One entry per session/day, even if brief.
 11-08-2026
 
 Worked on the 2nd task
-After the learning pause re-read the task and the context. Started to read the doc https://alembic.sqlalchemy.org/en/latest/cookbook.html#using-asyncio-with-alembic to finish the task. 
+After the learning pause re-read the task and the context. Started to read the doc https://alembic.sqlalchemy.org/en/latest/cookbook.html#using-asyncio-with-alembic to finish the task.
+
+12-08-2026
+Started to implement the Alembic. Run command and by the documentation didn't fully understand what is going on.
+Started to work on configuring Alembic.

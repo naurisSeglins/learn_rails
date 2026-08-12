@@ -444,6 +444,52 @@ existed) — two different eras answering the same one-thread constraint, that d
 something else run" job — at the cost of threads being too heavy to spin up millions of. Newer Java (Loom) and Go get both properties at once, only by rebuilding runtime machinery most languages
 haven't (yet) rebuilt.
 
+## 7. Alembic initialization — theoretical basis, before running it
+
+**The command:** `alembic init -t async alembic`.
+
+- **`alembic init`** scaffolds Alembic's files: `alembic.ini` (config, at repo root) plus a directory containing `env.py` (the script that runs when a migration executes), `script.py.mako`
+  (the template new migration files get generated from), and an empty `versions/` folder (where actual migration files will live).
+- **`-t async`** swaps in the async-flavored starter template. The default template assumes a synchronous engine/connection and would generate an `env.py` that tries to connect that way —
+  incompatible with this project's asyncpg-based async engine. The async template's `env.py` uses `asyncio.run(...)` and an async connection instead, matching `main.py`.
+- **`alembic`** (the last argument) is the directory name Alembic creates for all of the above — convention, not a fixed requirement.
+
+**7.1 Follow-up — `zsh: command not found: alembic`.** Not a missing package: `alembic` already sits at `.venv/bin/alembic` (`alembic>=1.18.5` in `pyproject.toml`, confirmed via
+`uv run alembic --version` → `1.18.5`). `uv` deliberately installs project dependencies into `.venv/`, isolated from the system PATH on purpose — this project's alembic version can't clash
+with some other project's that way. Typing bare `alembic` searches the normal PATH, which never includes `.venv/bin/`, so it comes up empty even though the package is right there. The actual
+command is `uv run alembic init -t async alembic` — same `uv run` prefix `CLAUDE.md`'s Commands table already uses for every other Alembic command, just not one connected to `init` yet since
+that one-time setup step isn't in that table. Different root cause from the earlier `uv init` PATH issue (ticket 1) — that one was a stale PATH in an already-open shell after a fresh install;
+this one is project-scoped venv isolation by design, not staleness.
+
+**7.2 Follow-up — the whole flow, since `init` is only step 1 of 5.** `init` just scaffolds empty config files; nothing has touched Postgres yet at that point. The full sequence:
+
+1. `alembic init -t async alembic` — scaffold (done/in progress).
+2. Wire `env.py` to read the real database URL from this project's existing `Settings`/`.env`, instead of the placeholder `sqlalchemy.url` line `alembic.ini` generates — avoids keeping the
+   URL in two places, one of which (`.env`) isn't even committed.
+3. Point `env.py`'s `target_metadata` at this project's models' metadata — currently empty, since no models exist yet. That's expected, and exactly why the ticket asks for a first *empty*
+   migration, not a real schema change.
+4. `uv run alembic revision --autogenerate -m "..."` — generates a migration *file* in `alembic/versions/`. With nothing to compare, its `upgrade()`/`downgrade()` come out essentially empty.
+   Still hasn't touched Postgres.
+5. `uv run alembic upgrade head` — the only step that actually runs anything against the real database. For an empty migration, no schema changes, but Alembic creates its own bookkeeping
+   table, `alembic_version`, inside `learn_dev`. **That table's existence is the concrete proof** the ticket means by "confirm a first (empty) migration runs against a local Postgres instance."
+
+Steps 1–3 are setup/wiring, step 4 generates a file, step 5 is the only step that touches the database. "Done" = `alembic_version` visible via `psql` in `learn_dev`.
+
+**7.3 Follow-up — step 2 isn't actually done yet, checked against the real `env.py`.** Two issues found: (1) `settings = Settings()` was added at the top of `env.py`, but `Settings` is never
+imported there — a `NameError` the moment the file loads. (2) `settings` is only referenced inside `run_migrations_offline()`, which never actually runs for a normal `alembic upgrade head` —
+`run_migrations_online()` → `run_async_migrations()` is the path that executes, and it still builds its engine straight from `alembic.ini`'s untouched placeholder `sqlalchemy.url =
+driver://user:pass@localhost/dbname`. The URL needs wiring into the *online/async* path, not the offline one — back to the cookbook page (Read first) with that specific distinction in mind.
+
+**Step 3's own prerequisite:** `target_metadata` needs to point at a declarative base's `.metadata` attribute — no such object exists anywhere in this codebase yet (`main.py` has `Settings`,
+`engine`, `session`, no `Base`, no models file). An empty, table-less `Base` needs to exist first. *Read first for step 3:* SQLAlchemy's own ["ORM
+Quickstart"](https://docs.sqlalchemy.org/en/20/orm/quickstart.html) for the minimal `Base` shape, then Alembic's ["Auto Generating
+Migrations"](https://alembic.sqlalchemy.org/en/latest/autogenerate.html) for what `target_metadata` does with it.
+
+**What running `init` does *not* do:** the generated `env.py` doesn't yet know about this project's actual models or its `DATABASE_URL` — that wiring is a separate step, covered directly by
+this ticket's own Read first (Alembic's ["Using asyncio with Alembic"](https://alembic.sqlalchemy.org/en/latest/cookbook.html#using-asyncio-with-alembic) cookbook page). Generating the files
+is not the finish line for this ticket — the acceptance criteria is a first *empty* migration actually running against the local Postgres instance, which needs that wiring plus
+`alembic revision --autogenerate` and `alembic upgrade head` afterward.
+
 ## Status
 
 In progress. Done: Postgres server running locally on port 5434 (moved from 5433 after a second port conflict — see 1.1; data directory relocated outside the repo), `learn_dev` database created,
