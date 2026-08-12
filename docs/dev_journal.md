@@ -20,3 +20,9 @@ Newest entry at the top. One entry per session/day, even if brief.
 - **Retrieval check:** can I explain [the concept from today] back in my own words right now?
   Yes/no + one line. Same checkpoint TASKS.md already asks for per-ticket, just run daily here too.
 ```
+
+
+11-08-2026
+
+Worked on the 2nd task
+After the learning pause re-read the task and the context. Started to read the doc https://alembic.sqlalchemy.org/en/latest/cookbook.html#using-asyncio-with-alembic to finish the task. 
