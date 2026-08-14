@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4edc5d42-a62c-4325-a517-0b53a7c25573" name="Changes" comment="adding journal entry">
+    <list default="true" id="4edc5d42-a62c-4325-a517-0b53a7c25573" name="Changes" comment="Alembic and journal">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/env.py" beforeDir="false" afterPath="$PROJECT_DIR$/alembic/env.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/dev_journal.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/dev_journal.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_0_project_setup/02_setup_postgres_sqlalchemy_alembic.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/task_learning_notes/phase_0_project_setup/02_setup_postgres_sqlalchemy_alembic.md" afterDir="false" />
     </list>
@@ -31,7 +32,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
-    "com.intellij.lang.ruby.rbs.tools.collection.workspace.sync.RbsCollectionUpdateProjectActivity#LAST_UPDATE_TIMESTAMP": "1785825080458",
+    "com.intellij.lang.ruby.rbs.tools.collection.workspace.sync.RbsCollectionUpdateProjectActivity#LAST_UPDATE_TIMESTAMP": "1786688563311",
     "git-widget-placeholder": "main",
     "last_opened_file_path": "/Users/nseglins/Udemy/learn_rails",
     "node.js.detected.package.eslint": "true",
@@ -137,6 +138,7 @@
       <updated>1784267153371</updated>
       <workItem from="1784267154689" duration="23036000" />
       <workItem from="1785825017313" duration="27926000" />
+      <workItem from="1786688504500" duration="3742000" />
     </task>
     <task id="LOCAL-00001" summary="intial documents">
       <option name="closed" value="true" />
@@ -250,7 +252,15 @@
       <option name="project" value="LOCAL" />
       <updated>1786516078111</updated>
     </task>
-    <option name="localTasksCounter" value="15" />
+    <task id="LOCAL-00015" summary="Alembic and journal">
+      <option name="closed" value="true" />
+      <created>1786521357125</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1786521357126</updated>
+    </task>
+    <option name="localTasksCounter" value="16" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -265,6 +275,7 @@
     <MESSAGE value="docs and instructions" />
     <MESSAGE value="docs and instructions and exercise" />
     <MESSAGE value="adding journal entry" />
-    <option name="LAST_COMMIT_MESSAGE" value="adding journal entry" />
+    <MESSAGE value="Alembic and journal" />
+    <option name="LAST_COMMIT_MESSAGE" value="Alembic and journal" />
   </component>
 </project>

@@ -490,6 +490,48 @@ this ticket's own Read first (Alembic's ["Using asyncio with Alembic"](https://a
 is not the finish line for this ticket — the acceptance criteria is a first *empty* migration actually running against the local Postgres instance, which needs that wiring plus
 `alembic revision --autogenerate` and `alembic upgrade head` afterward.
 
+**7.4 Follow-up — re-checked against the real `env.py` again; two distinct issues, only one currently blocking.** 7.3 point 1 (`Settings` not imported) is now fixed —
+`from main import Settings` is present at the top of `env.py`. Two things remain, and they're not the same kind of problem:
+
+- **A live bug, but not the current blocker:** `run_migrations_offline` (`env.py:47`) has `url = config.get_main_option(settings.database_url)`. `get_main_option` expects a *key name* to
+  look up inside `alembic.ini` (e.g. `"sqlalchemy.url"`), not an actual URL string — passing the URL itself asks Alembic to look up a config key whose name *is* that URL, which doesn't exist.
+  Genuinely wrong, but per 7.2, `run_migrations_offline` never executes for a plain `alembic upgrade head` — so this isn't what's currently failing.
+- **The actual current blocker:** `run_async_migrations` (`env.py:66-81`) builds its engine via `async_engine_from_config(config.get_section(config.config_ini_section, {}), ...)` — which
+  reads straight from `alembic.ini`'s `[alembic]` section, where `sqlalchemy.url` is still the untouched placeholder `driver://user:pass@localhost/dbname`. Nothing in `env.py` yet injects
+  `settings.database_url` into that section before this runs, so the one path that actually touches Postgres is still talking to a fake URL.
+
+**Which reading actually applies to which problem:** the two links picked for step 3 (SQLAlchemy's ORM Quickstart for a minimal `Base`, Alembic's Auto Generating Migrations for what
+`target_metadata` does with it) are for *after* this — `target_metadata = None` is correct for now, since no models/`Base` exist yet and the first migration is meant to be empty. The
+currently-blocking problem (wiring the *online* engine to the real URL) is exactly what this ticket's own already-assigned Read first — the "Using asyncio with Alembic" cookbook page —
+covers: it shows a `Config` object has a way to *set* an option, not just read one, which is the missing piece before `async_engine_from_config` runs.
+
+**7.4.1 Follow-up — read the cookbook page fully, still stuck; checked directly against Alembic's own docs (fetched live, not from memory) rather than re-guessing.** Confirmed
+`run_upgrade`/`run_async_upgrade` is a red herring — that's the "Programmatic API use" variant, for an application calling `command.upgrade(...)` in-process; irrelevant to CLI
+`alembic upgrade head`.
+
+The real gap: the cookbook page's own text — "using an asyncio database URL in **alembic.ini**, one can run commands such as `alembic upgrade`" — reveals it assumes the real URL is
+already hardcoded into `alembic.ini`. The page is solving "how do I make the engine async," not "where does the URL come from" — it never claims to. Fetched the Alembic tutorial page
+directly to confirm nothing was missed: it explicitly says "If the SQLAlchemy URL should come from some other source, such as environment variables... the developer is encouraged to
+alter `env.py`... using whatever methods are appropriate" — acknowledging the gap without a recipe, rather than the recipe living somewhere unread.
+
+**The actual mechanism**, confirmed against Alembic's `Config` API reference: `Config.set_main_option(name, value)` — "Set an option programmatically within the 'main' section. This
+overrides whatever was in the .ini file." This is what needs to run, before `run_async_migrations`'s `config.get_section(...)` call reads that section, to push `settings.database_url`
+into the same slot `alembic.ini`'s placeholder currently fills. Left as an exercise: which exact key name `set_main_option` needs (tied to the `prefix="sqlalchemy."` argument
+`async_engine_from_config` already uses), and which point in `env.py` runs unconditionally early enough to guarantee it happens before `run_async_migrations` reads the section.
+
+**7.4.2 Follow-up — the whole config flow, ground up (requested plain-language walkthrough).** Five pieces, in the order they actually happen:
+
+- **`alembic.ini`** — a plain text file on disk. Under `[alembic]`, `sqlalchemy.url = driver://user:pass@localhost/dbname` sits unread, still the placeholder, until something opens it.
+- **The `Config` object** (`config = context.config`, `env.py:16`) — the moment `alembic upgrade head` runs, before any of `env.py`'s own code executes, Alembic copies the entire ini
+  file into this in-memory object. From this point on, nothing re-reads the disk file this run — every lookup or override touches this in-memory copy only.
+- **`get_section`** (`env.py:72`, inside `run_async_migrations`) — flips to the `[alembic]` page of that in-memory copy and hands back its dict (`{"sqlalchemy.url": "driver://...", ...}`).
+  `async_engine_from_config` pulls `sqlalchemy.url` from that dict and builds the real engine from it. This is the *only* place in the online path a URL is ever read from.
+- **`set_main_option(name, value)`** — overwrites one entry in that in-memory copy (never the disk file). Alembic's sanctioned way to override an ini value at runtime — exactly for "the
+  real value shouldn't live in a checked-in file."
+- **The gap, as a chain:** `alembic.ini` (disk, placeholder) → copied once into `Config` before `env.py` runs → `env.py` starts, nothing currently writes an override → `get_section`
+  reads the still-untouched placeholder → engine built wrong. The missing link is a `set_main_option` call that (a) always runs regardless of online/offline mode and (b) runs before
+  `run_async_migrations` executes — the same kind of always-runs spot `settings = Settings()` (`env.py:12`) already occupies near the top of the file.
+
 ## Status
 
 In progress. Done: Postgres server running locally on port 5434 (moved from 5433 after a second port conflict — see 1.1; data directory relocated outside the repo), `learn_dev` database created,

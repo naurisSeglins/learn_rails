@@ -30,3 +30,9 @@ After the learning pause re-read the task and the context. Started to read the d
 12-08-2026
 Started to implement the Alembic. Run command and by the documentation didn't fully understand what is going on.
 Started to work on configuring Alembic.
+
+14-08-2026
+Still struggling with config. Try to read documentation but can't find missing piece or put the logic together. Asked for help
+Still didn't understand and find the reason - turns out there are gaps I didn't understand and knew about - asked for more help
+Help arrived but it is kinda technical with all the disks and engine and in-memory so still a bit lost but I think I found the path to follow
+to understand the whole thing and be able to complete the setup myself.
