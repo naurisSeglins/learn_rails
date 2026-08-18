@@ -4,12 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="4edc5d42-a62c-4325-a517-0b53a7c25573" name="Changes" comment="Alembic and journal">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/env.py" beforeDir="false" afterPath="$PROJECT_DIR$/alembic/env.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/dev_journal.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/dev_journal.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/task_learning_notes/phase_0_project_setup/02_setup_postgres_sqlalchemy_alembic.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/task_learning_notes/phase_0_project_setup/02_setup_postgres_sqlalchemy_alembic.md" afterDir="false" />
-    </list>
+    <list default="true" id="4edc5d42-a62c-4325-a517-0b53a7c25573" name="Changes" comment="docs and journal" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -138,7 +133,7 @@
       <updated>1784267153371</updated>
       <workItem from="1784267154689" duration="23036000" />
       <workItem from="1785825017313" duration="27926000" />
-      <workItem from="1786688504500" duration="3742000" />
+      <workItem from="1786688504500" duration="4630000" />
     </task>
     <task id="LOCAL-00001" summary="intial documents">
       <option name="closed" value="true" />
@@ -260,7 +255,15 @@
       <option name="project" value="LOCAL" />
       <updated>1786521357126</updated>
     </task>
-    <option name="localTasksCounter" value="16" />
+    <task id="LOCAL-00016" summary="docs and journal">
+      <option name="closed" value="true" />
+      <created>1786692598403</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1786692598403</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -276,6 +279,7 @@
     <MESSAGE value="docs and instructions and exercise" />
     <MESSAGE value="adding journal entry" />
     <MESSAGE value="Alembic and journal" />
-    <option name="LAST_COMMIT_MESSAGE" value="Alembic and journal" />
+    <MESSAGE value="docs and journal" />
+    <option name="LAST_COMMIT_MESSAGE" value="docs and journal" />
   </component>
 </project>

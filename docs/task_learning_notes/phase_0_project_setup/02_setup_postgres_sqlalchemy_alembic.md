@@ -519,6 +519,10 @@ overrides whatever was in the .ini file." This is what needs to run, before `run
 into the same slot `alembic.ini`'s placeholder currently fills. Left as an exercise: which exact key name `set_main_option` needs (tied to the `prefix="sqlalchemy."` argument
 `async_engine_from_config` already uses), and which point in `env.py` runs unconditionally early enough to guarantee it happens before `run_async_migrations` reads the section.
 
+*Read first, alongside the cookbook page:* Alembic's own [`Config.set_main_option` API reference](https://alembic.sqlalchemy.org/en/latest/api/config.html#alembic.config.Config.set_main_option)
+— documents `name`/`value`'s general contract directly, plus one fact not covered anywhere else read so far: `value` is passed through `ConfigParser.set`, which supports `%(...)s`-style
+variable interpolation (a raw `%` would need escaping as `%%`). Doesn't answer the project-specific key name above — that's still the same open exercise.
+
 **7.4.2 Follow-up — the whole config flow, ground up (requested plain-language walkthrough).** Five pieces, in the order they actually happen:
 
 - **`alembic.ini`** — a plain text file on disk. Under `[alembic]`, `sqlalchemy.url = driver://user:pass@localhost/dbname` sits unread, still the placeholder, until something opens it.
@@ -531,6 +535,80 @@ into the same slot `alembic.ini`'s placeholder currently fills. Left as an exerc
 - **The gap, as a chain:** `alembic.ini` (disk, placeholder) → copied once into `Config` before `env.py` runs → `env.py` starts, nothing currently writes an override → `get_section`
   reads the still-untouched placeholder → engine built wrong. The missing link is a `set_main_option` call that (a) always runs regardless of online/offline mode and (b) runs before
   `run_async_migrations` executes — the same kind of always-runs spot `settings = Settings()` (`env.py:12`) already occupies near the top of the file.
+
+**7.4.3 Follow-up — ground-up basics underneath 7.4.2: disk vs. memory, what a file is, what the INI format means, and what "running a command" actually does.** Requested as a connected
+walkthrough, since each piece is genuinely a link in one chain rather than an isolated definition. Same Part-labeled shape as 6.6.3, each part answering *why* the one before it is true.
+
+**Part A — Disk vs. memory: why `alembic.ini` has to be a disk file at all.**
+- *What it says:* a computer keeps data in two very different places while it works. RAM (memory) is where a *running* program's own variables and objects live — including, later, the
+  in-memory `Config` object 7.4.2 talks about. It's fast, but every byte of it disappears the instant that process ends. Disk is slower, but it's *persistent* — the bytes sitting there
+  survive after the process exits, after the machine reboots, across every separate future run.
+- *Why:* `alembic.ini` is edited once and then read again by a hundred separate, unrelated runs of `alembic upgrade head` over weeks or months — each one a brand-new process (Part E below)
+  with its own fresh, empty memory. Nothing carries over between those runs *except* whatever was written to disk. If the URL only ever lived in some process's memory, it would vanish the
+  moment that one process ended, and the next run would have nothing to read.
+- *What comes out of it:* this is exactly what "sits unread until something opens it" means, literally rather than as a figure of speech. Disk storage is inert — it doesn't run, compute, or
+  do anything by itself. It only becomes meaningful the moment some running, in-memory program reads those bytes in.
+- *Where it goes further:* a running program can't just reach out and touch disk hardware directly to do that reading. That boundary is guarded — by the exact same kernel-crossing machinery
+  already walked through in [[6.6.3]] for `epoll_wait`, just a different syscall. Part B.
+
+**Part B — What a "file" is, and why opening one means crossing into the kernel.**
+- *What it says:* a *file* is an abstraction the operating system provides on top of raw disk bytes: a name (`alembic.ini`), pointing at an ordered sequence of bytes, plus bookkeeping (where
+  those bytes start on disk, how many there are, who's allowed to read/write them) that the filesystem — part of the kernel — maintains. The name is not the data; it's a lookup key the
+  kernel resolves for you.
+- *Why:* only the kernel is allowed to actually talk to the disk controller — this is [[6.6.3]]'s Layer 2 again, ring 0 vs. ring 3. A user-mode process (Alembic's own code, Layer 3) has no
+  legal way to read disk bytes on its own; it has to *ask* the kernel to do it, via a syscall — mechanically the same doorway (one `syscall`/`svc` instruction, privilege flip, jump to one
+  fixed kernel entry point) as `epoll_wait`, just two different syscalls: `open` (find the file, get a handle to it), then `read` (copy some of its bytes into this process's own memory).
+- *What comes out of it:* "unread until something opens it" describes the exact moment *before* that `open`+`read` pair has been issued. Before then, the bytes exist on disk, physically, but
+  no process has asked the kernel to hand any of them into memory yet — nothing has crossed the disk→RAM boundary.
+- *Where it goes further:* once those bytes *are* copied into memory, they're just raw bytes — 0s and 1s with no inherent meaning yet. Something still has to decide what they represent. Part C.
+
+**Part C — Why "plain text" matters, and what decoding those bytes actually does.**
+- *What it says:* a *plain text file* is one where, if you interpret its raw bytes using a standard text encoding (almost always UTF-8 today), they decode into the ordinary readable
+  characters you'd see in an editor — letters, digits, `[`, `]`, `=`, newlines — rather than, say, compiled machine instructions or a binary image format. `alembic.ini`'s bytes decode to
+  exactly the characters shown in 7.4.2: `[alembic]`, a newline, `sqlalchemy.url = driver://user:pass@localhost/dbname`, and so on.
+- *Why:* this is what makes the file safe to open in any text editor and inspect by eye, and — more importantly here — what makes it possible for *some other piece of code* to read it as
+  structured configuration rather than needing a special binary parser.
+- *What comes out of it:* "plain text" only gets you *characters*. Nothing about text itself says a line starting with `[` is special, or that `key = value` means "store `value` under
+  `key`." That structure is a convention layered on top of plain text — not a property of text itself.
+- *Where it goes further:* that specific convention is the INI format, and something has to actually know its rules to turn these characters into usable structure. Part D.
+
+**Part D — The INI format: what `[alembic]` and `sqlalchemy.url = ...` actually mean, and who enforces that meaning.**
+- *What it says:* INI is an old, simple text convention for config files. A line like `[alembic]` opens a *section* — a named group. Every `key = value` line after it, until the next
+  `[...]` line, belongs to that section. Structurally, that's just a two-level lookup — section name → key name → value — exactly the shape of a dictionary whose values are themselves
+  dictionaries: `{"alembic": {"sqlalchemy.url": "driver://user:pass@localhost/dbname", ...}}`.
+- *Why:* Alembic didn't invent this format or write its own parser for it — it uses Python's standard-library `configparser`, which already knows these exact rules (what a `[section]` line
+  looks like, where one section's keys end and the next begins) and builds that nested-dict-like structure from the raw characters Part C produced.
+- *What comes out of it:* this is precisely why `get_section("alembic")` (7.4.2, `env.py:72`) makes sense as an operation at all — it's dictionary-style lookup: "hand me the sub-dict that
+  lives under the section named `alembic`." And it's why the file's text, by itself, is still inert — `sqlalchemy.url = driver://...` is just characters in a recognizable shape *until*
+  `configparser` actually runs over them.
+- *Where it goes further:* so when, concretely, does that parsing step happen — when do these characters actually become a real in-memory dict? Only once you run the command itself. Part E.
+
+**Part E — What "running `alembic upgrade head`" mechanically does, start to finish.**
+- *What it says:* typing `uv run alembic upgrade head` in a terminal: the shell (via `uv run`, per 7.1) locates the `alembic` executable inside `.venv/bin` and asks the OS to start a
+  brand-new *process* running it. That process, concretely, is "Python, executing Alembic's own source code," beginning at Alembic's command-line entry point — the same kind of user-mode
+  process as [[6.6.3]]'s Layer 3, just running Alembic/Python instead of uvicorn/asyncio.
+- *Why:* a *process* is what actually exists, in memory, while this happens — its own private address space, able to hold its own objects. The instant before this process starts, nothing
+  has looked at `alembic.ini` yet *this run* — the file has been sitting on disk exactly as Parts A–D describe, completely inert.
+- *What comes out of it:* very early in that new process's life — as part of Alembic's own startup code, before this project's `env.py` gets control at all — Alembic performs the
+  `open`+`read` from Part B, hands the resulting text to `configparser` from Part D, and gets back the real in-memory nested structure. That structure is what `context.config` already *is*
+  by the time `config = context.config` (`env.py:16`) runs — this line doesn't create it, it just grabs a reference to something Alembic already built moments earlier.
+- *Where it goes further:* from this instant on, for the rest of this one process's run, the disk file is no longer part of the picture at all. Every subsequent lookup or override — Part F —
+  touches only this in-memory object, never the file again.
+
+**Part F — Reconnecting: 7.4.2's chain, now fully grounded, told as one story.**
+1. `alembic.ini` sits on disk (Part A) — an OS-level file (Part B) whose bytes decode to plain text (Part C) written in the INI convention (Part D): a `[alembic]` section containing
+   `sqlalchemy.url = driver://user:pass@localhost/dbname`, still just the placeholder, because nothing has ever overwritten it.
+2. The moment `alembic upgrade head` starts a new process (Part E), and before any of *this project's* `env.py` code runs, Alembic opens and reads that file, parses it with `configparser`,
+   and builds the in-memory `Config` object — the disk file's one and only appearance in this whole run.
+3. `env.py` begins executing (Layer 4 territory, in [[6.6.3]]'s terms) and reaches `config = context.config` (`env.py:16`) — just a reference to the object Part E already built, not a
+   fresh read of anything.
+4. Inside `run_async_migrations`, `get_section(config.config_ini_section, {})` (`env.py:72`) is dictionary-style lookup (Part D) into that in-memory structure: "give me the `[alembic]`
+   section's dict." `async_engine_from_config` pulls `sqlalchemy.url` out of that dict and builds the real database engine from whatever string is sitting there.
+5. Currently, nothing between steps 2 and 4 ever changes that dict's `sqlalchemy.url` entry — so step 4 reads back the exact same placeholder string that was sitting in the disk file in
+   step 1, and the engine gets built pointing at a database that doesn't exist.
+6. `set_main_option(name, value)` is Alembic's sanctioned way to change that in-memory dict's entry *before* step 4 runs — it writes into the same in-memory `Config` object from step 2,
+   never back to the disk file. The fix this ticket still needs is one line calling it — with the right key name, early enough in `env.py` to run before `run_async_migrations` reads the
+   section — so that step 4 reads `settings.database_url` instead of the file's placeholder.
 
 ## Status
 
